@@ -139,6 +139,7 @@ public:
 	void EnableDepthTest(bool on) override;
 	void EnableMultisampling(bool on) override;
 	void EnableLineSmooth(bool on) override;
+	void ApplySSAO(float m5, unsigned int vpindex) override;
 
 
 };

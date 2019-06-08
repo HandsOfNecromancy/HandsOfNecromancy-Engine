@@ -525,6 +525,17 @@ void FGLRenderState::EnableLineSmooth(bool on)
 	ToggleState(GL_LINE_SMOOTH, on);
 }
 
+void FGLRenderState::ApplySSAO(float m5, unsigned int vpIndex)
+{
+	EnableDrawBuffers(1);
+	GLRenderer->AmbientOccludeScene(m5);
+	glViewport(screen->mSceneViewport.left, screen->mSceneViewport.top, screen->mSceneViewport.width, screen->mSceneViewport.height);
+	GLRenderer->mBuffers->BindSceneFB(true);
+	EnableDrawBuffers(GetPassDrawBufferCount());
+	Apply();
+	screen->mViewpoints->Bind(*this, vpIndex);
+}
+
 //==========================================================================
 //
 //

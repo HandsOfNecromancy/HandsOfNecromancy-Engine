@@ -179,8 +179,6 @@ struct HWDrawInfo
 	fixed_t viewx, viewy;	// since the nodes are still fixed point, keeping the view position  also fixed point for node traversal is faster.
 	bool multithread;
 
-	std::function<void(HWDrawInfo *, int)> DrawScene = nullptr;
-
 private:
     // For ProcessLowerMiniseg
     bool inview;
@@ -245,7 +243,7 @@ public:
 	HWDrawInfo *EndDrawInfo();
 	void SetViewArea();
 	int SetFullbrightFlags(player_t *player);
-	void HWDrawInfo::DoDrawScene(FRenderState& RenderState, int drawmode, const std::function<void()> &ApplySSAO);
+	void HWDrawInfo::DoDrawScene(FRenderState& RenderState, int drawmode);
 
 	void CreateScene(bool drawpsprites);
 	void RenderScene(FRenderState &state);
@@ -254,7 +252,7 @@ public:
 	void EndDrawScene(sector_t * viewsector, FRenderState &state);
 	void DrawEndScene2D(sector_t * viewsector, FRenderState &state);
 	void Set3DViewport(FRenderState &state);
-	void ProcessScene(bool toscreen, const std::function<void(HWDrawInfo *, int)> &drawScene);
+	void ProcessScene(FRenderState& state, bool toscreen);
 
 	bool DoOneSectorUpper(subsector_t * subsec, float planez, area_t in_area);
 	bool DoOneSectorLower(subsector_t * subsec, float planez, area_t in_area);

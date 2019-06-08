@@ -90,7 +90,6 @@ HWDrawInfo *FDrawInfoList::GetNew()
 
 void FDrawInfoList::Release(HWDrawInfo * di)
 {
-	di->DrawScene = nullptr;
 	di->ClearBuffers();
 	di->Level = nullptr;
 	mList.Push(di);
@@ -105,7 +104,6 @@ void FDrawInfoList::Release(HWDrawInfo * di)
 HWDrawInfo *HWDrawInfo::StartDrawInfo(FLevelLocals *lev, HWDrawInfo *parent, FRenderViewpoint &parentvp, HWViewpointUniforms *uniforms)
 {
 	HWDrawInfo *di = di_list.GetNew();
-	if (parent) di->DrawScene = parent->DrawScene;
 	di->Level = lev;
 	di->StartScene(parentvp, uniforms);
 	return di;
@@ -651,7 +649,7 @@ void HWDrawInfo::Set3DViewport(FRenderState &state)
 //
 //-----------------------------------------------------------------------------
 
-void HWDrawInfo::DoDrawScene(FRenderState &RenderState, int drawmode, const std::function<void()> &ApplySSAO)
+void HWDrawInfo::DoDrawScene(FRenderState &RenderState, int drawmode)
 {
 	static int recursion = 0;
 	static int ssao_portals_available = 0;
@@ -691,7 +689,7 @@ void HWDrawInfo::DoDrawScene(FRenderState &RenderState, int drawmode, const std:
 
 	if (applySSAO && RenderState.GetPassType() == GBUFFER_PASS)
 	{
-		ApplySSAO();
+		RenderState.ApplySSAO(VPUniforms.mProjectionMatrix.get()[5], vpIndex);
 	}
 
 	// Handle all portals after rendering the opaque objects but before
@@ -709,15 +707,13 @@ void HWDrawInfo::DoDrawScene(FRenderState &RenderState, int drawmode, const std:
 //
 //-----------------------------------------------------------------------------
 
-void HWDrawInfo::ProcessScene(bool toscreen, const std::function<void(HWDrawInfo *,int)> &drawScene)
+void HWDrawInfo::ProcessScene(FRenderState &state, bool toscreen)
 {
 	screen->mPortalState->BeginScene();
 
 	int mapsection = Level->PointInRenderSubsector(Viewpoint.Pos)->mapsection;
 	CurrentMapSections.Set(mapsection);
-	DrawScene = drawScene;
-	DrawScene(this, toscreen ? DM_MAINVIEW : DM_OFFSCREEN);
-
+	DoDrawScene(state, toscreen ? DM_MAINVIEW : DM_OFFSCREEN);
 }
 
 //==========================================================================

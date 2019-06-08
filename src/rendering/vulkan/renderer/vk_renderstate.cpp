@@ -4,6 +4,7 @@
 #include "vulkan/system/vk_builders.h"
 #include "vulkan/renderer/vk_renderpass.h"
 #include "vulkan/renderer/vk_renderbuffers.h"
+#include "vulkan/renderer/vk_postprocess.h"
 #include "vulkan/textures/vk_hwtexture.h"
 #include "templates.h"
 #include "doomstat.h"
@@ -526,6 +527,13 @@ void VkRenderState::EnableDrawBuffers(int count)
 		EndRenderPass();
 		mRenderTarget.DrawBuffers = count;
 	}
+}
+
+void VkRenderState::ApplySSAO(float m5, unsigned int vpIndex)
+{
+	auto vkfb = static_cast<VulkanFrameBuffer*>(screen);
+	vkfb->GetPostprocess()->AmbientOccludeScene(m5);
+	screen->mViewpoints->Bind(*this, vpIndex);
 }
 
 void VkRenderState::SetRenderTarget(VulkanImageView *view, VulkanImageView *depthStencilView, int width, int height, VkFormat format, VkSampleCountFlagBits samples)

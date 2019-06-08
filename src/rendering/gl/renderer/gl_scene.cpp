@@ -72,29 +72,6 @@ namespace OpenGLRenderer
 
 //-----------------------------------------------------------------------------
 //
-// gl_drawscene - this function renders the scene from the current
-// viewpoint, including mirrors and skyboxes and other portals
-// It is assumed that the HWPortal::EndFrame returns with the 
-// stencil, z-buffer and the projection matrix intact!
-//
-//-----------------------------------------------------------------------------
-
-void FGLRenderer::DrawScene(HWDrawInfo *di, int drawmode)
-{
-	di->DoDrawScene(gl_RenderState, drawmode, [&]()
-		{
-			gl_RenderState.EnableDrawBuffers(1);
-			GLRenderer->AmbientOccludeScene(di->VPUniforms.mProjectionMatrix.get()[5]);
-			glViewport(screen->mSceneViewport.left, screen->mSceneViewport.top, screen->mSceneViewport.width, screen->mSceneViewport.height);
-			GLRenderer->mBuffers->BindSceneFB(true);
-			gl_RenderState.EnableDrawBuffers(gl_RenderState.GetPassDrawBufferCount());
-			gl_RenderState.Apply();
-			screen->mViewpoints->Bind(gl_RenderState, di->vpIndex);
-		});
-}
-
-//-----------------------------------------------------------------------------
-//
 // Renders one viewpoint in a scene
 //
 //-----------------------------------------------------------------------------
@@ -145,9 +122,7 @@ sector_t * FGLRenderer::RenderViewpoint (FRenderViewpoint &mainvp, AActor * came
 		di->SetupView(gl_RenderState, vp.Pos.X, vp.Pos.Y, vp.Pos.Z, false, false);
 
 		// std::function until this can be done better in a cross-API fashion.
-		di->ProcessScene(toscreen, [&](HWDrawInfo *di, int mode) {
-			DrawScene(di, mode);
-		});
+		di->ProcessScene(gl_RenderState, toscreen);
 
 		if (mainview)
 		{

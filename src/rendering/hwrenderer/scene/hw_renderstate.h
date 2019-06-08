@@ -614,6 +614,7 @@ public:
 	virtual void EnableMultisampling(bool on) = 0;				// only active for 2D
 	virtual void EnableLineSmooth(bool on) = 0;					// constant setting for each 2D drawer operation
 	virtual void EnableDrawBuffers(int count) = 0;				// Used by SSAO and EnableDrawBufferAttachments
+	virtual void ApplySSAO(float m5, unsigned int vpIndex) = 0;	// Run the in-scene SSAO pass (this must be here because the render state is the only object connecting the renderer to the backend.)
 
 	void SetColorMask(bool on)
 	{

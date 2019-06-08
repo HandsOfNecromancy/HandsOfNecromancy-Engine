@@ -41,6 +41,7 @@ public:
 	void EnableMultisampling(bool on) override;
 	void EnableLineSmooth(bool on) override;
 	void EnableDrawBuffers(int count) override;
+	void ApplySSAO(float m5, unsigned int vpindex) override;
 
 	void BeginFrame();
 	void SetRenderTarget(VulkanImageView *view, VulkanImageView *depthStencilView, int width, int height, VkFormat Format, VkSampleCountFlagBits samples);
