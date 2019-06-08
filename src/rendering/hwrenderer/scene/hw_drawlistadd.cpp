@@ -29,6 +29,18 @@
 
 EXTERN_CVAR(Bool, gl_seamless)
 
+CVAR(Bool, hw_async_submit, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
+
+static void AsyncSubmitWall(HWWall* wall, int mode)
+{
+
+}
+
+static void AsyncSubmitFlat(HWFlat* wall, int mode)
+{
+
+}
+
 //==========================================================================
 //
 // 
@@ -37,10 +49,11 @@ EXTERN_CVAR(Bool, gl_seamless)
 
 void HWDrawInfo::AddWall(HWWall *wall)
 {
+	HWWall* newwall;
+	int async = screen->CanDoAsyncSubmit() && hw_async_submit;
 	if (wall->flags & HWWall::HWF_TRANSLUCENT)
 	{
-		auto newwall = drawlists[GLDL_TRANSLUCENT].NewWall();
-		*newwall = *wall;
+		newwall = drawlists[GLDL_TRANSLUCENT].NewWall();
 	}
 	else
 	{
@@ -55,9 +68,19 @@ void HWDrawInfo::AddWall(HWWall *wall)
 		{
 			list = masked ? GLDL_MASKEDWALLS : GLDL_PLAINWALLS;
 		}
-		auto newwall = drawlists[list].NewWall();
-		*newwall = *wall;
+		if (list == GLDL_PLAINWALLS && async)
+		{
+			// For now only solid geometry  can be processed fully asynchronously because there's only one global render state.
+			newwall = (HWWall*)RenderDataAllocator.Alloc(sizeof(HWWall));
+			async++;
+		}
+		else
+		{
+			auto newwall = drawlists[list].NewWall();
+		}
 	}
+	*newwall = *wall;
+	if (async > 0) AsyncSubmitWall(newwall, async);
 }
 
 //==========================================================================
@@ -79,8 +102,11 @@ void HWDrawInfo::AddMirrorSurface(HWWall *w)
 	auto tcs = newwall->tcs;
 	tcs[HWWall::LOLFT].u = tcs[HWWall::LORGT].u = tcs[HWWall::UPLFT].u = tcs[HWWall::UPRGT].u = v.X;
 	tcs[HWWall::LOLFT].v = tcs[HWWall::LORGT].v = tcs[HWWall::UPLFT].v = tcs[HWWall::UPRGT].v = v.Z;
-	newwall->MakeVertices(this, false);
-	newwall->ProcessDecals(this);
+
+	int async = screen->CanDoAsyncSubmit() && hw_async_submit;
+	if (async == 0) newwall->MakeVertices(this, false);
+	else AsyncSubmitWall(newwall, 1);
+	w->ProcessDecals(this);
 }
 
 //==========================================================================
@@ -95,6 +121,7 @@ void HWDrawInfo::AddMirrorSurface(HWWall *w)
 void HWDrawInfo::AddFlat(HWFlat *flat, bool fog)
 {
 	int list;
+	int async = screen->CanDoAsyncSubmit() && hw_async_submit;
 
 	if (flat->renderstyle != STYLE_Translucent || flat->alpha < 1.f - FLT_EPSILON || fog || flat->gltexture == nullptr)
 	{
@@ -121,8 +148,19 @@ void HWDrawInfo::AddFlat(HWFlat *flat, bool fog)
 		bool masked = flat->gltexture->isMasked() && ((flat->renderflags&SSRF_RENDER3DPLANES) || flat->stack);
 		list = masked ? GLDL_MASKEDFLATS : GLDL_PLAINFLATS;
 	}
-	auto newflat = drawlists[list].NewFlat();
+	HWFlat* newflat;
+	if (list == GLDL_PLAINFLATS && async)
+	{
+		// For now only solid geometry  can be processed fully asynchronously because there's only one global render state.
+		newflat = (HWFlat*)RenderDataAllocator.Alloc(sizeof(HWFlat));
+		async++;
+	}
+	else
+	{
+		newflat = drawlists[list].NewFlat();
+	}
 	*newflat = *flat;
+	if (async > 0) AsyncSubmitFlat(newflat, async);
 }
 
 

@@ -136,7 +136,7 @@ void VulkanFrameBuffer::InitializeState()
 	default:     vendorstring = "Unknown"; break;
 	}
 
-	hwcaps = RFL_SHADER_STORAGE_BUFFER | RFL_BUFFER_STORAGE;
+	hwcaps = RFL_SHADER_STORAGE_BUFFER | RFL_BUFFER_STORAGE | RFL_ASYNCHRONOUS;
 	glslversion = 4.50f;
 	uniformblockalignment = (unsigned int)device->PhysicalDevice.Properties.limits.minUniformBufferOffsetAlignment;
 	maxuniformblock = device->PhysicalDevice.Properties.limits.maxUniformBufferRange;

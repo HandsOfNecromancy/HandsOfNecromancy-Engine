@@ -74,6 +74,7 @@ enum EHWCaps
 
 	RFL_INVALIDATE_BUFFER = 64,
 	RFL_DEBUG = 128,
+	RFL_ASYNCHRONOUS = 256,
 };
 
 
@@ -450,6 +451,7 @@ public:
 	virtual IIndexBuffer *CreateIndexBuffer() { return nullptr; }
 	virtual IDataBuffer *CreateDataBuffer(int bindingpoint, bool ssbo, bool needsresize) { return nullptr; }
 	bool BuffersArePersistent() { return !!(hwcaps & RFL_BUFFER_STORAGE); }
+	bool CanDoAsyncSubmit() { return !!(hwcaps & RFL_ASYNCHRONOUS); }
 
 	// Begin/End 2D drawing operations.
 	void Begin2D() { isIn2D = true; }
