@@ -457,7 +457,7 @@ void HWDrawInfo::CreateScene(bool drawpsprites)
 //
 // RenderScene
 //
-// Draws the current draw lists for the non GLSL renderer
+// Draws the current draw lists
 //
 //-----------------------------------------------------------------------------
 
@@ -641,6 +641,67 @@ void HWDrawInfo::Set3DViewport(FRenderState &state)
 	state.EnableStencil(true);
 	state.SetStencil(0, SOP_Keep, SF_AllOn);
 }
+
+//-----------------------------------------------------------------------------
+//
+// gl_drawscene - this function renders the scene from the current
+// viewpoint, including mirrors and skyboxes and other portals
+// It is assumed that the HWPortal::EndFrame returns with the 
+// stencil, z-buffer and the projection matrix intact!
+//
+//-----------------------------------------------------------------------------
+
+void HWDrawInfo::DoDrawScene(FRenderState &RenderState, int drawmode, const std::function<void()> &ApplySSAO)
+{
+	static int recursion = 0;
+	static int ssao_portals_available = 0;
+	const auto& vp = Viewpoint;
+
+	bool applySSAO = false;
+	if (drawmode == DM_MAINVIEW)
+	{
+		ssao_portals_available = gl_ssao_portals;
+		applySSAO = true;
+	}
+	else if (drawmode == DM_OFFSCREEN)
+	{
+		ssao_portals_available = 0;
+	}
+	else if (drawmode == DM_PORTAL && ssao_portals_available > 0)
+	{
+		applySSAO = true;
+		ssao_portals_available--;
+	}
+
+	if (vp.camera != nullptr)
+	{
+		ActorRenderFlags savedflags = vp.camera->renderflags;
+		CreateScene(drawmode == DM_MAINVIEW);
+		vp.camera->renderflags = savedflags;
+	}
+	else
+	{
+		CreateScene(false);
+	}
+
+	RenderState.SetDepthMask(true);
+	if (!gl_no_skyclear) screen->mPortalState->RenderFirstSkyPortal(recursion, this, RenderState);
+
+	RenderScene(RenderState);
+
+	if (applySSAO && RenderState.GetPassType() == GBUFFER_PASS)
+	{
+		ApplySSAO();
+	}
+
+	// Handle all portals after rendering the opaque objects but before
+	// doing all translucent stuff
+	recursion++;
+	screen->mPortalState->EndFrame(this, RenderState);
+	recursion--;
+	RenderTranslucent(RenderState);
+}
+
 
 //-----------------------------------------------------------------------------
 //

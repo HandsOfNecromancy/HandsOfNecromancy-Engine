@@ -155,6 +155,7 @@ private:
 
 };
 
+
 // HUD message visibility flags
 enum
 {

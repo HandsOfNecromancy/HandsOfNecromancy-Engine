@@ -245,6 +245,7 @@ public:
 	HWDrawInfo *EndDrawInfo();
 	void SetViewArea();
 	int SetFullbrightFlags(player_t *player);
+	void HWDrawInfo::DoDrawScene(FRenderState& RenderState, int drawmode, const std::function<void()> &ApplySSAO);
 
 	void CreateScene(bool drawpsprites);
 	void RenderScene(FRenderState &state);

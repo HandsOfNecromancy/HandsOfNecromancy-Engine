@@ -76,7 +76,7 @@ void HWDrawInfo::AddWall(HWWall *wall)
 		}
 		else
 		{
-			auto newwall = drawlists[list].NewWall();
+			newwall = drawlists[list].NewWall();
 		}
 	}
 	*newwall = *wall;

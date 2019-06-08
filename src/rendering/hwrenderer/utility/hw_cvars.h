@@ -71,3 +71,8 @@ EXTERN_CVAR(Int, gl_shadowmap_filter)
 EXTERN_CVAR(Bool, gl_brightfog)
 EXTERN_CVAR(Bool, gl_lightadditivesurfaces)
 EXTERN_CVAR(Bool, gl_notexturefill)
+
+EXTERN_CVAR(Bool, gl_texture)
+EXTERN_CVAR(Bool, gl_no_skyclear)
+EXTERN_CVAR(Float, gl_mask_threshold)
+EXTERN_CVAR(Float, gl_mask_sprite_threshold)
