@@ -127,7 +127,7 @@ int FLightBuffer::UploadLights(FDynLightData &data)
 	}
 }
 
-int FLightBuffer::DoBindUBO(unsigned int index)
+int FLightBuffer::DoBindUBO(FRenderState& state, unsigned int index)
 {
 	// this function will only get called if a uniform buffer is used. For a shader storage buffer we only need to bind the buffer once at the start.
 	unsigned int offset = (index / mBlockAlign) * mBlockAlign;
@@ -135,7 +135,7 @@ int FLightBuffer::DoBindUBO(unsigned int index)
 	if (offset != mLastMappedIndex)
 	{
 		mLastMappedIndex = offset;
-		mBuffer->BindRange(offset * ELEMENT_SIZE, mBlockSize * ELEMENT_SIZE);
+		mBuffer->BindRange(state, offset * ELEMENT_SIZE, mBlockSize * ELEMENT_SIZE);
 	}
 	return (index - offset);
 }

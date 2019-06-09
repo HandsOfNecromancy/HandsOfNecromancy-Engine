@@ -126,14 +126,13 @@ public:
 			mBuffer = screen->CreateDataBuffer(bindingpoint, false, false);
 	}
 
-	void Set(bool bind = true)
+	// This currently only gets called by OpenGL. The parameter is merely a dummy to satisfx the interface.
+	void SetAndBind(FRenderState &state)
 	{
 		if (mBuffer != nullptr)
 			mBuffer->SetData(sizeof(T), &Values);
 
-		// Let's hope this can be done better when things have moved further ahead.
-		// This really is not the best place to add something that depends on API behavior.
-		if (bind) mBuffer->BindBase();
+		mBuffer->BindBase(state);
 	}
 
 	T *operator->() { return &Values; }

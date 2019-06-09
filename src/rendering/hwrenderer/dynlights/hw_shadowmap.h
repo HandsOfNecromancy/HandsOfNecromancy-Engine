@@ -64,6 +64,8 @@ protected:
 	IShadowMap(const IShadowMap &) = delete;
 	IShadowMap &operator=(IShadowMap &) = delete;
 
+	// OpenGL needs to rebind these regularly, so they need access from the backend.
+public:
 	// OpenGL storage buffer with the list of lights in the shadow map texture
 	IDataBuffer *mLightList = nullptr;
 

@@ -191,12 +191,17 @@ void FGLRenderer::UpdateShadowMap()
 
 		FGLPostProcessState savedState;
 
+		// rebind the buffers
+		screen->mShadowMap.mLightList->BindBase(gl_RenderState);
+		screen->mShadowMap.mNodesBuffer->BindBase(gl_RenderState);
+		screen->mShadowMap.mLinesBuffer->BindBase(gl_RenderState);
+
 		mBuffers->BindShadowMapFB();
 
 		mShadowMapShader->Bind();
 		mShadowMapShader->Uniforms->ShadowmapQuality = gl_shadowmap_quality;
 		mShadowMapShader->Uniforms->NodesCount = screen->mShadowMap.NodesCount();
-		mShadowMapShader->Uniforms.Set();
+		mShadowMapShader->Uniforms.SetAndBind(gl_RenderState);
 
 		glViewport(0, 0, gl_shadowmap_quality, 1024);
 		RenderScreenQuad();

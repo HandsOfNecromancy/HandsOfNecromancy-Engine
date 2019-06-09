@@ -174,7 +174,7 @@ void FGLRenderer::prepareInterleavedPresent(FPresentShaderBase& shader)
 		screen->mScreenViewport.height / (float)mBuffers->GetHeight()
 	};
 	shader.Uniforms->Offset = { 0.0f, 0.0f };
-	shader.Uniforms.Set();
+	shader.Uniforms.SetAndBind(gl_RenderState);	// Screw OpenGL's global state... :(
 }
 
 //==========================================================================
@@ -198,7 +198,7 @@ void FGLRenderer::PresentColumnInterleaved()
 	int windowHOffset = 0;
 
 	mPresent3dColumnShader->Uniforms->WindowPositionParity = windowHOffset;
-	mPresent3dColumnShader->Uniforms.Set();
+	mPresent3dColumnShader->Uniforms.SetAndBind(gl_RenderState);
 
 	RenderScreenQuad();
 }
@@ -225,7 +225,7 @@ void FGLRenderer::PresentRowInterleaved()
 			+ screen->mOutputLetterbox.height + 1 // +1 because of origin at bottom
 			) % 2;
 
-	mPresent3dRowShader->Uniforms.Set();
+	mPresent3dRowShader->Uniforms.SetAndBind(gl_RenderState);
 	RenderScreenQuad();
 }
 
@@ -256,7 +256,7 @@ void FGLRenderer::PresentCheckerInterleaved()
 			+ screen->mOutputLetterbox.height + 1 // +1 because of origin at bottom
 			) % 2; // because we want the top pixel offset, but gl_FragCoord.y is the bottom pixel offset
 
-	mPresent3dCheckerShader->Uniforms.Set();
+	mPresent3dCheckerShader->Uniforms.SetAndBind(gl_RenderState);
 	RenderScreenQuad();
 }
 

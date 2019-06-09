@@ -189,7 +189,7 @@ bool FGLRenderState::ApplyShader()
 		matrixToGL(identityMatrix, activeShader->normalmodelmatrix_index);
 	}
 
-	auto index = screen->mLights->BindUBO(mLightIndex);
+	auto index = screen->mLights->BindUBO(*this, mLightIndex);
 	activeShader->muLightIndex.Set(index);
 
 	return true;

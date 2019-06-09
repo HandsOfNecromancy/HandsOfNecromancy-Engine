@@ -68,8 +68,8 @@ public:
 		}
 	}
 
-	void BindRange(size_t start, size_t length) override;
-	void BindBase() override;
+	void BindRange(FRenderState &state, size_t start, size_t length) override;
+	void BindBase(FRenderState& state) override;
 
 	int bindingpoint;
 };

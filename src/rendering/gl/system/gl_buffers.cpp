@@ -210,13 +210,13 @@ void GLVertexBuffer::Bind(int *offsets)
 	}
 }
 
-void GLDataBuffer::BindRange(size_t start, size_t length)
+void GLDataBuffer::BindRange(FRenderState&, size_t start, size_t length)
 {
 	if (mUseType == GL_UNIFORM_BUFFER)	// SSBO's cannot be rebound.
 		glBindBufferRange(mUseType, mBindingPoint, mBufferId, start, length);
 }
 
-void GLDataBuffer::BindBase()
+void GLDataBuffer::BindBase(FRenderState&)
 {
 	glBindBufferBase(mUseType, mBindingPoint, mBufferId);
 }

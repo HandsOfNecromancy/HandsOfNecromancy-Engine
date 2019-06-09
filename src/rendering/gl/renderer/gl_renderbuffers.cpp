@@ -955,7 +955,7 @@ void GLPPRenderState::Draw()
 		if (!shader->Uniforms)
 			shader->Uniforms.reset(screen->CreateDataBuffer(POSTPROCESS_BINDINGPOINT, false, false));
 		shader->Uniforms->SetData(Uniforms.Data.Size(), Uniforms.Data.Data());
-		shader->Uniforms->BindBase();
+		shader->Uniforms->BindBase(gl_RenderState);
 	}
 
 	// Set shader

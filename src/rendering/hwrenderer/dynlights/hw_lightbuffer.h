@@ -35,7 +35,7 @@ public:
 	unsigned int GetBlockSize() const { return mBlockSize; }
 	bool GetBufferType() const { return mBufferType; }
 
-	int DoBindUBO(unsigned int index);
+	int DoBindUBO(FRenderState& state, unsigned int index);
 
     int ShaderIndex(unsigned int index) const
     {
@@ -46,19 +46,19 @@ public:
     }
 
 	// Only relevant for OpenGL, so this does not need access to the render state.
-	int BindUBO(int index)
+	int BindUBO(FRenderState& state, int index)
 	{
 		if (!mBufferType && index > -1)
 		{
-			index = DoBindUBO(index);
+			index = DoBindUBO(state, index);
 		}
 		return index;
 	}
 
 	// The parameter is a reminder for Vulkan.
-	void BindBase()
+	void BindBase(FRenderState& state)
 	{
-		mBuffer->BindBase();
+		mBuffer->BindBase(state);
 		mLastMappedIndex = UINT_MAX;
 	}
 

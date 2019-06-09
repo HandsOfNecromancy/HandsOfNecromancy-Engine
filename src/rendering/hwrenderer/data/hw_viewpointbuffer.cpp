@@ -62,13 +62,13 @@ void GLViewpointBuffer::CheckSize()
 	}
 }
 
-int GLViewpointBuffer::Bind(FRenderState &di, unsigned int index)
+int GLViewpointBuffer::Bind(FRenderState &state, unsigned int index)
 {
 	if (index != mLastMappedIndex)
 	{
 		mLastMappedIndex = index;
-		mBuffer->BindRange(index * mBlockAlign, mBlockAlign);
-		di.EnableClipDistance(0, mClipPlaneInfo[index]);
+		mBuffer->BindRange(state, index * mBlockAlign, mBlockAlign);
+		state.EnableClipDistance(0, mClipPlaneInfo[index]);
 	}
 	return index;
 }
