@@ -76,6 +76,33 @@ extern bool gpuStatActive;
 extern bool keepGpuStatActive;
 extern FString gpuStatOutput;
 
+
+void VulkanStreamUBO::Delete()
+{
+	if (mBuffer) delete mBuffer;
+}
+
+void VulkanStreamUBO::Create(VulkanFrameBuffer* owner)
+{
+	mBuffer = (VKDataBuffer*)owner->CreateDataBuffer(-1, false, false);
+	mBuffer->SetData(owner->UniformBufferAlignedSize<::StreamUBO>() * 200, nullptr, false);
+	mOuterIndex = mInnerIndex = 0;
+}
+
+std::pair<uint32_t, uint32_t> VulkanStreamUBO::AllocateEntry(const StreamData& data)
+{
+	mInnerIndex++;
+	if (mInnerIndex == MAX_STREAM_DATA)
+	{
+		mInnerIndex = 0;
+		mOuterIndex += sizeof(StreamUBO);
+	}
+	uint8_t* ptr = (uint8_t*)mBuffer->Memory();
+	memcpy(ptr + mInnerIndex + sizeof(StreamData) * mOuterIndex, &data, sizeof(StreamData));
+	return std::make_pair(mInnerIndex, mOuterIndex);
+}
+
+
 VulkanFrameBuffer::VulkanFrameBuffer(void *hMonitor, bool fullscreen, VulkanDevice *dev) : 
 	Super(hMonitor, fullscreen) 
 {
@@ -107,7 +134,7 @@ VulkanFrameBuffer::~VulkanFrameBuffer()
 	PPResource::ResetAll();
 
 	delete MatricesUBO;
-	delete StreamUBO;
+	StreamData.Delete();
 	delete mVertexData;
 	delete mSkyData;
 	delete mViewpoints;
@@ -159,9 +186,9 @@ void VulkanFrameBuffer::InitializeState()
 
 	// To do: move this to HW renderer interface maybe?
 	MatricesUBO = (VKDataBuffer*)CreateDataBuffer(-1, false, false);
-	StreamUBO = (VKDataBuffer*)CreateDataBuffer(-1, false, false);
 	MatricesUBO->SetData(UniformBufferAlignedSize<::MatricesUBO>() * 50000, nullptr, false);
-	StreamUBO->SetData(UniformBufferAlignedSize<::StreamUBO>() * 200, nullptr, false);
+	StreamData.Create(this);
+
 
 	mShaderManager.reset(new VkShaderManager(device));
 	mSamplerManager.reset(new VkSamplerManager(device));
@@ -193,6 +220,7 @@ void VulkanFrameBuffer::Update()
 
 	mRenderState->EndRenderPass();
 	mRenderState->EndFrame();
+	StreamData.Reset();
 
 	Flush3D.Unclock();
 

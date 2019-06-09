@@ -18,7 +18,11 @@ struct MatricesUBO
 	VSMatrix TextureMatrix;
 };
 
-#define MAX_STREAM_DATA 256
+enum
+{
+	MAX_STREAM_DATA = 256
+};
+
 
 struct StreamUBO
 {

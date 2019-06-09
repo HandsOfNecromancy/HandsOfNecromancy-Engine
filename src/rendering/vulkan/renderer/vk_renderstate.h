@@ -94,9 +94,10 @@ protected:
 
 	uint32_t mLastViewpointOffset = 0xffffffff;
 	uint32_t mLastMatricesOffset = 0xffffffff;
-	uint32_t mLastStreamDataOffset = 0xffffffff;
 	uint32_t mViewpointOffset = 0;
 	uint32_t mMatricesOffset = 0;
+
+	uint32_t mLastStreamDataOffset = 0xffffffff;
 	uint32_t mDataIndex = -1;
 	uint32_t mStreamDataOffset = 0;
 

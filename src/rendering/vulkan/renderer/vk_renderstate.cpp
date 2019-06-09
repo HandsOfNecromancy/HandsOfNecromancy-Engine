@@ -323,14 +323,9 @@ void VkRenderState::ApplyStreamData()
 	else
 		mStreamData.timer = 0.0f;
 
-	mDataIndex++;
-	if (mDataIndex == MAX_STREAM_DATA)
-	{
-		mDataIndex = 0;
-		mStreamDataOffset += sizeof(StreamUBO);
-	}
-	uint8_t *ptr = (uint8_t*)fb->StreamUBO->Memory();
-	memcpy(ptr + mStreamDataOffset + sizeof(StreamData) * mDataIndex, &mStreamData, sizeof(StreamData));
+	auto index = fb->StreamData.AllocateEntry(mStreamData);
+	mDataIndex = index.first;
+	mStreamDataOffset = index.second;
 }
 
 void VkRenderState::ApplyPushConstants()
@@ -423,7 +418,7 @@ void VkRenderState::ApplyMatrices()
 
 		if (mMatricesOffset + (fb->UniformBufferAlignedSize<MatricesUBO>() << 1) < fb->MatricesUBO->Size())
 		{
-			mMatricesOffset += fb->UniformBufferAlignedSize<MatricesUBO>();
+			mMatricesOffset += (uint32_t)fb->UniformBufferAlignedSize<MatricesUBO>();
 			memcpy(static_cast<uint8_t*>(fb->MatricesUBO->Memory()) + mMatricesOffset, &mMatrices, sizeof(MatricesUBO));
 		}
 	}
@@ -516,8 +511,6 @@ void VkRenderState::EndRenderPass()
 void VkRenderState::EndFrame()
 {
 	mMatricesOffset = 0;
-	mStreamDataOffset = 0;
-	mDataIndex = -1;
 }
 
 void VkRenderState::EnableDrawBuffers(int count)

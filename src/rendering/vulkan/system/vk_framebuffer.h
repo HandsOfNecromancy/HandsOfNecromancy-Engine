@@ -15,6 +15,27 @@ class VkRenderBuffers;
 class VkPostprocess;
 class SWSceneDrawer;
 
+// Todo: move these buffer definitions to a separate header later.
+class VulkanFrameBuffer;
+struct StreamData;
+
+class VulkanStreamUBO
+{
+	VKDataBuffer* mBuffer = nullptr;
+	uint32_t mOuterIndex = 0;
+	uint32_t mInnerIndex = 0;
+
+public:
+	void Reset()
+	{
+		mInnerIndex = mOuterIndex = 0;
+	}
+	void Delete();
+	void Create(VulkanFrameBuffer* owner);
+	std::pair<uint32_t, uint32_t> AllocateEntry(const StreamData& data);
+	VKDataBuffer* Buffer() const { return mBuffer; }
+};
+
 class VulkanFrameBuffer : public SystemBaseFrameBuffer
 {
 	typedef SystemBaseFrameBuffer Super;
@@ -39,12 +60,13 @@ public:
 	unsigned int GetLightBufferBlockSize() const;
 
 	template<typename T>
-	int UniformBufferAlignedSize() const { return (sizeof(T) + uniformblockalignment - 1) / uniformblockalignment * uniformblockalignment; }
+	size_t UniformBufferAlignedSize() const { return (sizeof(T) + uniformblockalignment - 1) / uniformblockalignment * uniformblockalignment; }
 
 	VKDataBuffer *ViewpointUBO = nullptr;
 	VKDataBuffer *LightBufferSSO = nullptr;
 	VKDataBuffer *MatricesUBO = nullptr;
-	VKDataBuffer *StreamUBO = nullptr;
+
+	VulkanStreamUBO StreamData;
 
 	VKDataBuffer *LightNodes = nullptr;
 	VKDataBuffer *LightLines = nullptr;
