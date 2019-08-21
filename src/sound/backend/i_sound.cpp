@@ -346,12 +346,14 @@ CCMD (snd_status)
 
 CCMD (snd_reset)
 {
+	auto channels = GSnd? GSnd->Channels : nullptr;
 	I_ShutdownMusic();
-	S_EvictAllChannels();
+	if (channels) channels->EvictAllChannels();
 	I_CloseSound();
 	I_InitSound();
+	GSnd->Channels = channels;
 	S_RestartMusic();
-	S_RestoreEvictedChannels();
+	if (channels) channels->RestoreEvictedChannels();
 }
 
 CCMD (snd_listdrivers)

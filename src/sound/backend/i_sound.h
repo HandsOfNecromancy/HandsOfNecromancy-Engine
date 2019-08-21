@@ -36,9 +36,10 @@
 #define __I_SOUND__
 
 #include "i_soundinternal.h"
-
+#include "i_channellist.h"
 class FileReader;
-struct FSoundChan;
+
+
 
 enum ECodecType
 {
@@ -172,6 +173,8 @@ public:
 	virtual void DrawWaveDebug(int mode);
 
     static SoundDecoder *CreateDecoder(FileReader &reader);
+	
+	FIChannelList *Channels = nullptr;
 };
 
 extern SoundRenderer *GSnd;
@@ -181,13 +184,9 @@ extern bool nosound;
 void I_InitSound ();
 void I_ShutdownSound ();
 
-void S_ChannelEnded(FISoundChannel *schan);
-void S_ChannelVirtualChanged(FISoundChannel *schan, bool is_virtual);
-float S_GetRolloff(FRolloffInfo *rolloff, float distance, bool logarithmic);
-FISoundChannel *S_GetChannel(void *syschan);
-
 extern ReverbContainer *DefaultEnvironments[26];
 
 bool IsOpenALPresent();
+
 
 #endif

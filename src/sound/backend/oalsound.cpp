@@ -24,7 +24,7 @@
 ** IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
 ** INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
 ** NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+** DATA, OR PROFITS; OR BUSINESS NTERRUPTION) HOWEVER CAUSED AND ON ANY
 ** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 ** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -45,6 +45,7 @@
 #include "i_musicinterns.h"
 #include "cmdlib.h"
 #include "menu/menu.h"
+#include "i_channellist.h"
 
 FModule OpenALModule{"OpenAL"};
 
@@ -254,7 +255,7 @@ class OpenALSoundStream : public SoundStream
 		/* Get a source, killing the farthest, lowest-priority sound if needed */
 		if(Renderer->FreeSfx.Size() == 0)
 		{
-			FSoundChan *lowest = Renderer->FindLowestChannel();
+			FISoundChannel *lowest = Renderer->FindLowestChannel();
 			if(lowest) Renderer->ForceStopChannel(lowest);
 
 			if(Renderer->FreeSfx.Size() == 0)
@@ -1115,7 +1116,7 @@ void OpenALSoundRenderer::SetSfxVolume(float volume)
 {
 	SfxVolume = volume;
 
-	FSoundChan *schan = Channels;
+	FISoundChannel *schan = Channels->FirstChannel();
 	while(schan)
 	{
 		if(schan->SysChannel != NULL)
@@ -1489,7 +1490,7 @@ void OpenALSoundRenderer::UnloadSound(SoundHandle sfx)
 		return;
 
 	ALuint buffer = GET_PTRID(sfx.data);
-	FSoundChan *schan = Channels;
+	FISoundChannel *schan = Channels->FirstChannel();
 	while(schan)
 	{
 		if(schan->SysChannel)
@@ -1498,7 +1499,7 @@ void OpenALSoundRenderer::UnloadSound(SoundHandle sfx)
 			alGetSourcei(GET_PTRID(schan->SysChannel), AL_BUFFER, &bufID);
 			if((ALuint)bufID == buffer)
 			{
-				FSoundChan *next = schan->NextChan;
+				FISoundChannel *next = schan->NextChan;
 				ForceStopChannel(schan);
 				schan = next;
 				continue;
@@ -1556,7 +1557,7 @@ FISoundChannel *OpenALSoundRenderer::StartSound(SoundHandle sfx, float vol, int 
 {
 	if(FreeSfx.Size() == 0)
 	{
-		FSoundChan *lowest = FindLowestChannel();
+		FISoundChannel *lowest = FindLowestChannel();
 		if(lowest) ForceStopChannel(lowest);
 
 		if(FreeSfx.Size() == 0)
@@ -1638,7 +1639,7 @@ FISoundChannel *OpenALSoundRenderer::StartSound(SoundHandle sfx, float vol, int 
 	FreeSfx.Pop();
 
 	FISoundChannel *chan = reuse_chan;
-	if(!chan) chan = S_GetChannel(MAKE_PTRID(source));
+	if(!chan) chan = Channels->GetChannel(MAKE_PTRID(source));
 	else chan->SysChannel = MAKE_PTRID(source);
 
 	chan->Rolloff.RolloffType = ROLLOFF_Log;
@@ -1658,7 +1659,7 @@ FISoundChannel *OpenALSoundRenderer::StartSound3D(SoundHandle sfx, SoundListener
 
 	if(FreeSfx.Size() == 0)
 	{
-		FSoundChan *lowest = FindLowestChannel();
+		FISoundChannel *lowest = FindLowestChannel();
 		if(lowest)
 		{
 			if(lowest->Priority < priority || (lowest->Priority == priority &&
@@ -1849,7 +1850,7 @@ FISoundChannel *OpenALSoundRenderer::StartSound3D(SoundHandle sfx, SoundListener
 	FreeSfx.Pop();
 
 	FISoundChannel *chan = reuse_chan;
-	if(!chan) chan = S_GetChannel(MAKE_PTRID(source));
+	if(!chan) chan = Channels->GetChannel(MAKE_PTRID(source));
 	else chan->SysChannel = MAKE_PTRID(source);
 
 	chan->Rolloff = *rolloff;
@@ -1908,7 +1909,7 @@ void OpenALSoundRenderer::StopChannel(FISoundChannel *chan)
 
 	ALuint source = GET_PTRID(chan->SysChannel);
 	// Release first, so it can be properly marked as evicted if it's being killed
-	S_ChannelEnded(chan);
+	Channels->ChannelEnded(chan);
 
 	ALint state = AL_INITIAL;
 	alGetSourcei(source, AL_SOURCE_STATE, &state);
@@ -1932,7 +1933,7 @@ void OpenALSoundRenderer::ForceStopChannel(FISoundChannel *chan)
 	ALuint source = GET_PTRID(chan->SysChannel);
 	if(!source) return;
 
-	S_ChannelEnded(chan);
+	Channels->ChannelEnded(chan);
 	FreeSource(source);
 }
 
@@ -2152,7 +2153,7 @@ void OpenALSoundRenderer::UpdateListener(SoundListener *listener)
 				alFilterf(EnvFilters[1], AL_LOWPASS_GAINHF, 1.f);
 
 				// Apply the updated filters on the sources
-				FSoundChan *schan = Channels;
+				FISoundChannel *schan = Channels->FirstChannel();
 				while (schan)
 				{
 					ALuint source = GET_PTRID(schan->SysChannel);
@@ -2165,7 +2166,7 @@ void OpenALSoundRenderer::UpdateListener(SoundListener *listener)
 				}
 			}
 
-			FSoundChan *schan = Channels;
+			FISoundChannel *schan = Channels->FirstChannel();
 			while (schan)
 			{
 				ALuint source = GET_PTRID(schan->SysChannel);
@@ -2190,7 +2191,7 @@ void OpenALSoundRenderer::UpdateListener(SoundListener *listener)
 			alFilterf(EnvFilters[1], AL_LOWPASS_GAIN, 1.f);
 			alFilterf(EnvFilters[1], AL_LOWPASS_GAINHF, 1.f);
 
-			FSoundChan *schan = Channels;
+			FISoundChannel *schan = Channels->FirstChannel();
 			while (schan)
 			{
 				ALuint source = GET_PTRID(schan->SysChannel);
@@ -2203,7 +2204,7 @@ void OpenALSoundRenderer::UpdateListener(SoundListener *listener)
 			}
 		}
 
-		FSoundChan *schan = Channels;
+		FISoundChannel *schan = Channels->FirstChannel();
 		while (schan)
 		{
 			ALuint source = GET_PTRID(schan->SysChannel);
@@ -2379,7 +2380,7 @@ void OpenALSoundRenderer::PurgeStoppedSources()
 		if(state == AL_INITIAL || state == AL_PLAYING || state == AL_PAUSED)
 			continue;
 
-		FSoundChan *schan = Channels;
+		FISoundChannel *schan = Channels->FirstChannel();
 		while(schan)
 		{
 			if(schan->SysChannel != NULL && src == GET_PTRID(schan->SysChannel))
@@ -2499,10 +2500,10 @@ void OpenALSoundRenderer::LoadReverb(const ReverbContainer *env)
 	getALError();
 }
 
-FSoundChan *OpenALSoundRenderer::FindLowestChannel()
+FISoundChannel *OpenALSoundRenderer::FindLowestChannel()
 {
-	FSoundChan *schan = Channels;
-	FSoundChan *lowest = NULL;
+	FISoundChannel *schan = Channels->FirstChannel();
+	FISoundChannel *lowest = NULL;
 	while(schan)
 	{
 		if(schan->SysChannel != NULL)

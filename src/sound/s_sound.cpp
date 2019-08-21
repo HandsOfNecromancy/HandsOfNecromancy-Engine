@@ -84,6 +84,7 @@
 #include "vm.h"
 #include "g_game.h"
 #include "atterm.h"
+#include "i_channellist.h"
 
 // MACROS ------------------------------------------------------------------
 
@@ -96,9 +97,6 @@
 #define O_BINARY 0
 #endif
 
-#define NORM_PITCH				128
-#define NORM_PRIORITY			64
-#define NORM_SEP				0
 
 #define S_PITCH_PERTURB 		1
 #define S_STEREO_SWING			0.75
@@ -134,6 +132,7 @@ static void CalcPolyobjSoundOrg(const DVector3 &listenpos, const FPolyObj *poly,
 static FSoundChan *S_StartSound(AActor *mover, const sector_t *sec, const FPolyObj *poly,
 	const FVector3 *pt, int channel, FSoundID sound_id, float volume, float attenuation, FRolloffInfo *rolloff, float spitch);
 static void S_SetListener(SoundListener &listener, AActor *listenactor);
+static void S_RestartSound(FSoundChan *chan);
 
 // PRIVATE DATA DEFINITIONS ------------------------------------------------
 
@@ -144,6 +143,41 @@ static FString	 LastSong;			// last music that was played
 static FPlayList *PlayList;
 static int		RestartEvictionsAt;	// do not restart evicted channels before this time
 
+class FSoundChannelList : public FIChannelList
+{
+public:
+	FSoundChannelList() : FIChannelList(sizeof(FSoundChan))
+	{
+	}
+	virtual SoundHandle &SoundData(FISoundChannel *chan) override
+	{
+		auto schan = static_cast<FSoundChan *>(chan);
+		return S_sfx[schan->SoundID].data;
+	}
+	
+	virtual void ChannelStopped(FISoundChannel *chan)
+	{
+		auto schan = static_cast<FSoundChan *>(chan);
+		if (schan->SourceType == SOURCE_Actor)
+		{
+			schan->Actor = nullptr;
+		}
+
+	}
+	
+	void RestartSound(FISoundChannel *chan)
+	{
+		S_RestartSound(static_cast<FSoundChan *>(chan));
+	}
+	
+	FSoundChan *Channels() const
+	{
+		return static_cast<FSoundChan*>(FirstChannel());
+	}
+};
+
+static FSoundChannelList ChannelList;
+
 DEFINE_GLOBAL_NAMED(mus_playing, musplaying);
 DEFINE_FIELD_X(MusPlayingInfo, MusPlayingInfo, name);
 DEFINE_FIELD_X(MusPlayingInfo, MusPlayingInfo, baseorder);
@@ -153,7 +187,6 @@ DEFINE_FIELD_X(MusPlayingInfo, MusPlayingInfo, loop);
 
 int sfx_empty;
 
-FSoundChan *Channels;
 FSoundChan *FreeChannels;
 
 FRolloffInfo S_Rolloff;
@@ -199,7 +232,7 @@ void S_NoiseDebug (void)
 	screen->DrawText (NewConsoleFont, CR_GOLD, 520, y, "pos", TAG_DONE);
 	y += NewConsoleFont->GetHeight();
 
-	if (Channels == NULL)
+	if (ChannelList.Channels() == nullptr)
 	{
 		return;
 	}
@@ -208,7 +241,7 @@ void S_NoiseDebug (void)
 	listener = players[consoleplayer].camera->SoundPos();
 
 	// Display the oldest channel first.
-	for (chan = Channels; chan->NextChan != NULL; chan = chan->NextChan)
+	for (chan = ChannelList.Channels(); chan->Next() != NULL; chan = chan->Next())
 	{ }
 	while (y < SCREENHEIGHT - 16)
 	{
@@ -290,11 +323,16 @@ void S_NoiseDebug (void)
 
 
 		y += NewConsoleFont->GetHeight();
-		if (chan->PrevChan == &Channels)
+#if 0
+		// OMG! This godawful hackery needs to be fixed before this can be reactivated.
+		if (chan->PrevChan == &ChannelList.Channels())
 		{
 			break;
 		}
 		chan = (FSoundChan *)((size_t)chan->PrevChan - myoffsetof(FSoundChan, NextChan));
+#else
+		break;
+#endif
 	}
 }
 
@@ -315,6 +353,7 @@ void S_Init ()
 	int curvelump;
 
 	atterm (S_Shutdown);
+	if (GSnd) GSnd->Channels = &ChannelList;
 
 	// Heretic and Hexen have sound curve lookup tables. Doom does not.
 	curvelump = Wads.CheckNumForName ("SNDCURVE");
@@ -329,10 +368,7 @@ void S_Init ()
 	}
 
 	// Free all channels for use.
-	while (Channels != NULL)
-	{
-		S_ReturnChannel(Channels);
-	}
+	ChannelList.ReturnAllChannels();
 
 	// no sounds are playing, and they are not paused
 	MusicPaused = false;
@@ -361,18 +397,12 @@ void S_Shutdown ()
 {
 	FSoundChan *chan, *next;
 
-	chan = Channels;
-	while (chan != NULL)
-	{
-		next = chan->NextChan;
-		S_StopChannel(chan);
-		chan = next;
-	}
+	ChannelList.StopAllChannels();
 
 	GSnd->UpdateSounds();
 	for (chan = FreeChannels; chan != NULL; chan = next)
 	{
-		next = chan->NextChan;
+		next = chan->Next();
 		delete chan;
 	}
 	FreeChannels = NULL;
@@ -509,7 +539,7 @@ void S_PrecacheLevel (FLevelLocals *Level)
 			FSoundID(snd).MarkUsed();
 		}
 		// Don't unload sounds that are playing right now.
-		for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+		for (FSoundChan *chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 		{
 			chan->SoundID.MarkUsed();
 		}
@@ -583,79 +613,6 @@ void S_UnloadSound (sfxinfo_t *sfx)
 	sfx->data3d.Clear();
 }
 
-//==========================================================================
-//
-// S_GetChannel
-//
-// Returns a free channel for the system sound interface.
-//
-//==========================================================================
-
-FISoundChannel *S_GetChannel(void *syschan)
-{
-	FSoundChan *chan;
-
-	if (FreeChannels != NULL)
-	{
-		chan = FreeChannels;
-		S_UnlinkChannel(chan);
-	}
-	else
-	{
-		chan = new FSoundChan;
-		memset(chan, 0, sizeof(*chan));
-	}
-	S_LinkChannel(chan, &Channels);
-	chan->SysChannel = syschan;
-	return chan;
-}
-
-//==========================================================================
-//
-// S_ReturnChannel
-//
-// Returns a channel to the free pool.
-//
-//==========================================================================
-
-void S_ReturnChannel(FSoundChan *chan)
-{
-	S_UnlinkChannel(chan);
-	memset(chan, 0, sizeof(*chan));
-	S_LinkChannel(chan, &FreeChannels);
-}
-
-//==========================================================================
-//
-// S_UnlinkChannel
-//
-//==========================================================================
-
-void S_UnlinkChannel(FSoundChan *chan)
-{
-	*(chan->PrevChan) = chan->NextChan;
-	if (chan->NextChan != NULL)
-	{
-		chan->NextChan->PrevChan = chan->PrevChan;
-	}
-}
-
-//==========================================================================
-//
-// S_LinkChannel
-//
-//==========================================================================
-
-void S_LinkChannel(FSoundChan *chan, FSoundChan **head)
-{
-	chan->NextChan = *head;
-	if (chan->NextChan != NULL)
-	{
-		chan->NextChan->PrevChan = &chan->NextChan;
-	}
-	*head = chan;
-	chan->PrevChan = head;
-}
 
 // [RH] Split S_StartSoundAtVolume into multiple parts so that sounds can
 //		be specified both by id and by name. Also borrowed some stuff from
@@ -1135,7 +1092,7 @@ static FSoundChan *S_StartSound(AActor *actor, const sector_t *sec, const FPolyO
 	// If this actor is already playing something on the selected channel, stop it.
 	if (type != SOURCE_None && ((actor == NULL && channel != CHAN_AUTO) || (actor != NULL && S_IsChannelUsed(actor, channel, &seen))))
 	{
-		for (chan = Channels; chan != NULL; chan = chan->NextChan)
+		for (chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 		{
 			if (chan->SourceType == type && chan->EntChannel == channel)
 			{
@@ -1151,7 +1108,7 @@ static FSoundChan *S_StartSound(AActor *actor, const sector_t *sec, const FPolyO
 				}
 				if (foundit)
 				{
-					S_StopChannel(chan);
+					ChannelList.StopChannel(chan);
 					break;
 				}
 			}
@@ -1168,11 +1125,11 @@ static FSoundChan *S_StartSound(AActor *actor, const sector_t *sec, const FPolyO
 	// Vary the sfx pitches.
 	if (pitchmask != 0)
 	{
-		pitch = NORM_PITCH - (M_Random() & pitchmask) + (M_Random() & pitchmask);
+		pitch = FIChannelList::NORM_PITCH - (M_Random() & pitchmask) + (M_Random() & pitchmask);
 	}
 	else
 	{
-		pitch = NORM_PITCH;
+		pitch = FIChannelList::NORM_PITCH;
 	}
 
 	if (chanflags & CHAN_EVICTED)
@@ -1201,7 +1158,7 @@ static FSoundChan *S_StartSound(AActor *actor, const sector_t *sec, const FPolyO
 	}
 	if (chan == NULL && (chanflags & CHAN_LOOP))
 	{
-		chan = (FSoundChan*)S_GetChannel(NULL);
+		chan = (FSoundChan*)ChannelList.GetChannel(NULL);
 		GSnd->MarkStartTime(chan);
 		chanflags |= CHAN_EVICTED;
 	}
@@ -1237,7 +1194,7 @@ static FSoundChan *S_StartSound(AActor *actor, const sector_t *sec, const FPolyO
 	}
 
 	if (spitch > 0.0)
-		S_SetPitch(chan, spitch);
+		ChannelList.SetPitch(chan, spitch);
 
 	return chan;
 }
@@ -1250,7 +1207,7 @@ static FSoundChan *S_StartSound(AActor *actor, const sector_t *sec, const FPolyO
 //
 //==========================================================================
 
-void S_RestartSound(FSoundChan *chan)
+static void S_RestartSound(FSoundChan *chan)
 {
 	assert(chan->ChanFlags & CHAN_EVICTED);
 
@@ -1617,7 +1574,7 @@ static void S_LoadSound3D(sfxinfo_t *sfx, FSoundLoadBuffer *pBuffer)
 
 bool S_CheckSingular(int sound_id)
 {
-	for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+	for (FSoundChan *chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 	{
 		if (chan->OrgID == sound_id)
 		{
@@ -1650,7 +1607,7 @@ bool S_CheckSoundLimit(sfxinfo_t *sfx, const FVector3 &pos, int near_limit, floa
 	FSoundChan *chan;
 	int count;
 	
-	for (chan = Channels, count = 0; chan != NULL && count < near_limit; chan = chan->NextChan)
+	for (chan = ChannelList.Channels(), count = 0; chan != NULL && count < near_limit; chan = chan->Next())
 	{
 		if (!(chan->ChanFlags & CHAN_EVICTED) && &S_sfx[chan->SoundID] == sfx)
 		{
@@ -1682,14 +1639,14 @@ bool S_CheckSoundLimit(sfxinfo_t *sfx, const FVector3 &pos, int near_limit, floa
 
 void S_StopSound (int channel)
 {
-	FSoundChan *chan = Channels;
+	FSoundChan *chan = ChannelList.Channels();
 	while (chan != NULL)
 	{
-		FSoundChan *next = chan->NextChan;
+		FSoundChan *next = chan->Next();
 		if (chan->SourceType == SOURCE_None &&
 			(chan->EntChannel == channel || (compatflags & COMPATF_MAGICSILENCE)))
 		{
-			S_StopChannel(chan);
+			ChannelList.StopChannel(chan);
 		}
 		chan = next;
 	}
@@ -1705,15 +1662,15 @@ void S_StopSound (int channel)
 
 void S_StopSound (AActor *actor, int channel)
 {
-	FSoundChan *chan = Channels;
+	FSoundChan *chan = ChannelList.Channels();
 	while (chan != NULL)
 	{
-		FSoundChan *next = chan->NextChan;
+		FSoundChan *next = chan->Next();
 		if (chan->SourceType == SOURCE_Actor &&
 			chan->Actor == actor &&
 			(chan->EntChannel == channel || (compatflags & COMPATF_MAGICSILENCE)))
 		{
-			S_StopChannel(chan);
+			ChannelList.StopChannel(chan);
 		}
 		chan = next;
 	}
@@ -1729,15 +1686,15 @@ void S_StopSound (AActor *actor, int channel)
 
 void S_StopSound (const sector_t *sec, int channel)
 {
-	FSoundChan *chan = Channels;
+	FSoundChan *chan = ChannelList.Channels();
 	while (chan != NULL)
 	{
-		FSoundChan *next = chan->NextChan;
+		FSoundChan *next = chan->Next();
 		if (chan->SourceType == SOURCE_Sector &&
 			chan->Sector == sec &&
 			(chan->EntChannel == channel || (compatflags & COMPATF_MAGICSILENCE)))
 		{
-			S_StopChannel(chan);
+			ChannelList.StopChannel(chan);
 		}
 		chan = next;
 	}
@@ -1753,15 +1710,15 @@ void S_StopSound (const sector_t *sec, int channel)
 
 void S_StopSound (const FPolyObj *poly, int channel)
 {
-	FSoundChan *chan = Channels;
+	FSoundChan *chan = ChannelList.Channels();
 	while (chan != NULL)
 	{
-		FSoundChan *next = chan->NextChan;
+		FSoundChan *next = chan->Next();
 		if (chan->SourceType == SOURCE_Polyobj &&
 			chan->Poly == poly &&
 			(chan->EntChannel == channel || (compatflags & COMPATF_MAGICSILENCE)))
 		{
-			S_StopChannel(chan);
+			ChannelList.StopChannel(chan);
 		}
 		chan = next;
 	}
@@ -1780,13 +1737,8 @@ void S_StopAllChannels ()
 		SN_StopAllSequences(Level);
 	}
 
-	FSoundChan *chan = Channels;
-	while (chan != NULL)
-	{
-		FSoundChan *next = chan->NextChan;
-		S_StopChannel(chan);
-		chan = next;
-	}
+	ChannelList.StopAllChannels();
+
 	GSnd->UpdateSounds();
 }
 
@@ -1803,10 +1755,10 @@ void S_RelinkSound (AActor *from, AActor *to)
 	if (from == NULL)
 		return;
 
-	FSoundChan *chan = Channels;
+	FSoundChan *chan = ChannelList.Channels();
 	while (chan != NULL)
 	{
-		FSoundChan *next = chan->NextChan;
+		FSoundChan *next = chan->Next();
 		if (chan->SourceType == SOURCE_Actor && chan->Actor == from)
 		{
 			if (to != NULL)
@@ -1824,7 +1776,7 @@ void S_RelinkSound (AActor *from, AActor *to)
 			}
 			else
 			{
-				S_StopChannel(chan);
+				ChannelList.StopChannel(chan);
 			}
 		}
 		chan = next;
@@ -1847,7 +1799,7 @@ void S_ChangeSoundVolume(AActor *actor, int channel, double dvolume)
 	else if (volume > 1.0)
 		volume = 1.0;
 
-	for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+	for (FSoundChan *chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 	{
 		if (chan->SourceType == SOURCE_Actor &&
 			chan->Actor == actor &&
@@ -1869,23 +1821,17 @@ void S_ChangeSoundVolume(AActor *actor, int channel, double dvolume)
 
 void S_ChangeSoundPitch(AActor *actor, int channel, double pitch)
 {
-	for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+	for (FSoundChan *chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 	{
 		if (chan->SourceType == SOURCE_Actor &&
 			chan->Actor == actor &&
 			chan->EntChannel == channel)
 		{
-			S_SetPitch(chan, (float)pitch);
+			ChannelList.SetPitch(chan, (float)pitch);
 			return;
 		}
 	}
 	return;
-}
-
-void S_SetPitch(FSoundChan *chan, float pitch)
-{
-	GSnd->ChannelPitch(chan, MAX(0.0001f, pitch));
-	chan->Pitch = MAX(1, int(float(NORM_PITCH) * pitch));
 }
 
 //==========================================================================
@@ -1899,7 +1845,7 @@ bool S_GetSoundPlayingInfo (const AActor *actor, int sound_id)
 {
 	if (sound_id > 0)
 	{
-		for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+		for (FSoundChan *chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 		{
 			if (chan->OrgID == sound_id &&
 				chan->SourceType == SOURCE_Actor &&
@@ -1916,7 +1862,7 @@ bool S_GetSoundPlayingInfo (const sector_t *sec, int sound_id)
 {
 	if (sound_id > 0)
 	{
-		for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+		for (FSoundChan *chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 		{
 			if (chan->OrgID == sound_id &&
 				chan->SourceType == SOURCE_Sector &&
@@ -1933,7 +1879,7 @@ bool S_GetSoundPlayingInfo (const FPolyObj *poly, int sound_id)
 {
 	if (sound_id > 0)
 	{
-		for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+		for (FSoundChan *chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 		{
 			if (chan->OrgID == sound_id &&
 				chan->SourceType == SOURCE_Polyobj &&
@@ -1962,7 +1908,7 @@ static bool S_IsChannelUsed(AActor *actor, int channel, int *seen)
 	{
 		return true;
 	}
-	for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+	for (FSoundChan *chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 	{
 		if (chan->SourceType == SOURCE_Actor && chan->Actor == actor)
 		{
@@ -1989,7 +1935,7 @@ bool S_IsActorPlayingSomething (AActor *actor, int channel, int sound_id)
 		channel = 0;
 	}
 
-	for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+	for (FSoundChan *chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 	{
 		if (chan->SourceType == SOURCE_Actor && chan->Actor == actor)
 		{
@@ -2107,91 +2053,6 @@ void S_SetSoundPaused (int state)
 
 //==========================================================================
 //
-// S_EvictAllChannels
-//
-// Forcibly evicts all channels so that there are none playing, but all
-// information needed to restart them is retained.
-//
-//==========================================================================
-
-void S_EvictAllChannels()
-{
-	FSoundChan *chan, *next;
-
-	for (chan = Channels; chan != NULL; chan = next)
-	{
-		next = chan->NextChan;
-
-		if (!(chan->ChanFlags & CHAN_EVICTED))
-		{
-			chan->ChanFlags |= CHAN_EVICTED;
-			if (chan->SysChannel != NULL)
-			{
-				if (!(chan->ChanFlags & CHAN_ABSTIME))
-				{
-					chan->StartTime = GSnd ? GSnd->GetPosition(chan) : 0;
-					chan->ChanFlags |= CHAN_ABSTIME;
-				}
-				S_StopChannel(chan);
-			}
-//			assert(chan->NextChan == next);
-		}
-	}
-}
-
-//==========================================================================
-//
-// S_RestoreEvictedChannel
-//
-// Recursive helper for S_RestoreEvictedChannels().
-//
-//==========================================================================
-
-void S_RestoreEvictedChannel(FSoundChan *chan)
-{
-	if (chan == NULL)
-	{
-		return;
-	}
-	S_RestoreEvictedChannel(chan->NextChan);
-	if (chan->ChanFlags & CHAN_EVICTED)
-	{
-		S_RestartSound(chan);
-		if (!(chan->ChanFlags & CHAN_LOOP))
-		{
-			if (chan->ChanFlags & CHAN_EVICTED)
-			{ // Still evicted and not looping? Forget about it.
-				S_ReturnChannel(chan);
-			}
-			else if (!(chan->ChanFlags & CHAN_JUSTSTARTED))
-			{ // Should this sound become evicted again, it's okay to forget about it.
-				chan->ChanFlags |= CHAN_FORGETTABLE;
-			}
-		}
-	}
-	else if (chan->SysChannel == NULL && (chan->ChanFlags & (CHAN_FORGETTABLE | CHAN_LOOP)) == CHAN_FORGETTABLE)
-	{
-		S_ReturnChannel(chan);
-	}
-}
-
-//==========================================================================
-//
-// S_RestoreEvictedChannels
-//
-// Restarts as many evicted channels as possible. Any channels that could
-// not be started and are not looping are moved to the free pool.
-//
-//==========================================================================
-
-void S_RestoreEvictedChannels()
-{
-	// Restart channels in the same order they were originally played.
-	S_RestoreEvictedChannel(Channels);
-}
-
-//==========================================================================
-//
 // S_UpdateSounds
 //
 // Updates music & sounds
@@ -2218,7 +2079,7 @@ void S_UpdateSounds (AActor *listenactor)
 	// should never happen
 	S_SetListener(listener, listenactor);
 
-	for (FSoundChan *chan = Channels; chan != NULL; chan = chan->NextChan)
+	for (FSoundChan *chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 	{
 		if ((chan->ChanFlags & (CHAN_EVICTED | CHAN_IS3D)) == CHAN_IS3D)
 		{
@@ -2243,7 +2104,7 @@ void S_UpdateSounds (AActor *listenactor)
 	if (primaryLevel->time >= RestartEvictionsAt)
 	{
 		RestartEvictionsAt = 0;
-		S_RestoreEvictedChannels();
+		ChannelList.RestoreEvictedChannels();
 	}
 }
 
@@ -2281,163 +2142,6 @@ static void S_SetListener(SoundListener &listener, AActor *listenactor)
 	}
 }
 
-
-
-//==========================================================================
-//
-// S_GetRolloff
-//
-//==========================================================================
-
-float S_GetRolloff(FRolloffInfo *rolloff, float distance, bool logarithmic)
-{
-	if (rolloff == NULL)
-	{
-		return 0;
-	}
-
-	if (distance <= rolloff->MinDistance)
-	{
-		return 1;
-	}
-	if (rolloff->RolloffType == ROLLOFF_Log)
-	{ // Logarithmic rolloff has no max distance where it goes silent.
-		return rolloff->MinDistance / (rolloff->MinDistance + rolloff->RolloffFactor * (distance - rolloff->MinDistance));
-	}
-	if (distance >= rolloff->MaxDistance)
-	{
-		return 0;
-	}
-
-	float volume = (rolloff->MaxDistance - distance) / (rolloff->MaxDistance - rolloff->MinDistance);
-	if (rolloff->RolloffType == ROLLOFF_Custom && S_SoundCurve.Size() > 0)
-	{
-		volume = S_SoundCurve[int(S_SoundCurve.Size() * (1 - volume))] / 127.f;
-	}
-	if (logarithmic)
-	{
-		if (rolloff->RolloffType == ROLLOFF_Linear)
-		{
-			return volume;
-		}
-		else
-		{
-			return float((powf(10.f, volume) - 1.) / 9.);
-		}
-	}
-	else
-	{
-		if (rolloff->RolloffType == ROLLOFF_Linear)
-		{
-			return float(log10(9. * volume + 1.));
-		}
-		else
-		{
-			return volume;
-		}
-	}
-}
-
-
-//==========================================================================
-//
-// S_ChannelEnded (callback for sound interface code)
-//
-//==========================================================================
-
-void S_ChannelEnded(FISoundChannel *ichan)
-{
-	FSoundChan *schan = static_cast<FSoundChan*>(ichan);
-	bool evicted;
-
-	if (schan != NULL)
-	{
-		// If the sound was stopped with GSnd->StopSound(), then we know
-		// it wasn't evicted. Otherwise, if it's looping, it must have
-		// been evicted. If it's not looping, then it was evicted if it
-		// didn't reach the end of its playback.
-		if (schan->ChanFlags & CHAN_FORGETTABLE)
-		{
-			evicted = false;
-		}
-		else if (schan->ChanFlags & (CHAN_LOOP | CHAN_EVICTED))
-		{
-			evicted = true;
-		}
-		else
-		{ 
-			unsigned int pos = GSnd->GetPosition(schan);
-			unsigned int len = GSnd->GetSampleLength(S_sfx[schan->SoundID].data);
-			if (pos == 0)
-			{
-				evicted = !!(schan->ChanFlags & CHAN_JUSTSTARTED);
-			}
-			else
-			{
-				evicted = (pos < len);
-			}
-		}
-		if (!evicted)
-		{
-			S_ReturnChannel(schan);
-		}
-		else
-		{
-			schan->ChanFlags |= CHAN_EVICTED;
-			schan->SysChannel = NULL;
-		}
-	}
-}
-
-//==========================================================================
-//
-// S_ChannelVirtualChanged (callback for sound interface code)
-//
-//==========================================================================
-
-void S_ChannelVirtualChanged(FISoundChannel *ichan, bool is_virtual)
-{
-	FSoundChan *schan = static_cast<FSoundChan*>(ichan);
-	if (is_virtual)
-	{
-		schan->ChanFlags |= CHAN_VIRTUAL;
-	}
-	else
-	{
-		schan->ChanFlags &= ~CHAN_VIRTUAL;
-	}
-}
-
-//==========================================================================
-//
-// S_StopChannel
-//
-//==========================================================================
-
-void S_StopChannel(FSoundChan *chan)
-{
-	if (chan == NULL)
-		return;
-
-	if (chan->SysChannel != NULL)
-	{
-		// S_EvictAllChannels() will set the CHAN_EVICTED flag to indicate
-		// that it wants to keep all the channel information around.
-		if (!(chan->ChanFlags & CHAN_EVICTED))
-		{
-			chan->ChanFlags |= CHAN_FORGETTABLE;
-			if (chan->SourceType == SOURCE_Actor)
-			{
-				chan->Actor = NULL;
-			}
-		}
-		GSnd->StopChannel(chan);
-	}
-	else
-	{
-		S_ReturnChannel(chan);
-	}
-}
 
 //==========================================================================
 //
@@ -2498,7 +2202,7 @@ void S_SerializeSounds(FSerializer &arc)
 		// Count channels and accumulate them so we can store them in
 		// reverse order. That way, they will be in the same order when
 		// reloaded later as they are now.
-		for (chan = Channels; chan != NULL; chan = chan->NextChan)
+		for (chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 		{
 			// If the sound is forgettable, this is as good a time as
 			// any to forget about it. And if it's a UI sound, it shouldn't
@@ -2531,7 +2235,7 @@ void S_SerializeSounds(FSerializer &arc)
 			count = arc.ArraySize();
 			for (unsigned int i = 0; i < count; ++i)
 			{
-				chan = (FSoundChan*)S_GetChannel(NULL);
+				chan = static_cast<FSoundChan*>(ChannelList.GetChannel(NULL));
 				arc(nullptr, *chan);
 				// Sounds always start out evicted when restored from a save.
 				chan->ChanFlags |= CHAN_EVICTED | CHAN_ABSTIME;
@@ -3250,7 +2954,7 @@ CCMD(listsoundchannels)
 {	
 	FSoundChan *chan;
 	int count = 0;
-	for (chan = Channels; chan != NULL; chan = chan->NextChan)
+	for (chan = ChannelList.Channels(); chan != NULL; chan = chan->Next())
 	{
 		if (!(chan->ChanFlags & CHAN_EVICTED))
 		{

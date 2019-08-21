@@ -30,6 +30,7 @@
 
 #include "doomtype.h"
 #include "i_soundinternal.h"
+#include "i_channellist.h"
 
 class AActor;
 class FScanner;
@@ -174,14 +175,10 @@ struct sector_t;
 struct FPolyObj;
 struct FSoundChan : public FISoundChannel
 {
-	FSoundChan	*NextChan;	// Next channel in this list.
-	FSoundChan **PrevChan;	// Previous channel in this list.
+
 	FSoundID	SoundID;	// Sound ID of playing sound.
 	FSoundID	OrgID;		// Sound ID of sound used to start this channel.
-	float		Volume;
-	int16_t		Pitch;		// Pitch variation.
 	uint8_t		EntChannel;	// Actor's sound channel.
-	int8_t		Priority;
 	int16_t		NearLimit;
 	uint8_t		SourceType;
 	float		LimitRange;
@@ -192,16 +189,12 @@ struct FSoundChan : public FISoundChannel
 		const FPolyObj	*Poly;		// Polyobject sound source.
 		float			 Point[3];	// Sound is not attached to any source.
 	};
+	
+	FSoundChan *Next() const
+	{
+		return static_cast<FSoundChan*>(NextChan);
+	}
 };
-
-extern FSoundChan *Channels;
-
-void S_ReturnChannel(FSoundChan *chan);
-void S_EvictAllChannels();
-
-void S_StopChannel(FSoundChan *chan);
-void S_LinkChannel(FSoundChan *chan, FSoundChan **head);
-void S_UnlinkChannel(FSoundChan *chan);
 
 // Initializes sound stuff, including volume
 // Sets channels, SFX and music volume,
@@ -260,24 +253,10 @@ void S_PlaySoundPitch(AActor *a, int chan, FSoundID sid, float vol, float atten,
 #define CHAN_CEILING			2	// Sound comes from the ceiling.
 #define CHAN_FULLHEIGHT			3	// Sound comes entire height of the sector.
 #define CHAN_INTERIOR			4	// Sound comes height between floor and ceiling.
-
-// modifier flags
-#define CHAN_LISTENERZ			8
-#define CHAN_MAYBE_LOCAL		16
-#define CHAN_UI					32	// Do not record sound in savegames.
-#define CHAN_NOPAUSE			64	// Do not pause this sound in menus.
-#define CHAN_AREA				128	// Sound plays from all around. Only valid with sector sounds.
-#define CHAN_LOOP				256
-
-#define CHAN_PICKUP				(CHAN_ITEM|CHAN_MAYBE_LOCAL)
-
-#define CHAN_IS3D				1	// internal: Sound is 3D.
-#define CHAN_EVICTED			2	// internal: Sound was evicted.
-#define CHAN_FORGETTABLE		4	// internal: Forget channel data when sound stops.
-#define CHAN_JUSTSTARTED		512	// internal: Sound has not been updated yet.
-#define CHAN_ABSTIME			1024// internal: Start time is absolute and does not depend on current time.
-#define CHAN_VIRTUAL			2048// internal: Channel is currently virtual
 #define CHAN_NOSTOP				4096// only for A_PlaySound. Does not start if channel is playing something.
+
+	
+#define CHAN_PICKUP				(CHAN_ITEM|CHAN_MAYBE_LOCAL)
 
 // sound attenuation values
 #define ATTN_NONE				0.f	// full volume the entire level
@@ -315,7 +294,6 @@ void S_ChangeSoundVolume(AActor *actor, int channel, double volume);
 
 // Change a playing sound's pitch
 void S_ChangeSoundPitch(AActor *actor, int channel, double pitch);
-void S_SetPitch(FSoundChan *chan, float dpitch);
 
 // Moves all sounds from one mobj to another
 void S_RelinkSound (AActor *from, AActor *to);
@@ -350,8 +328,6 @@ void S_SetSoundPaused (int state);
 // Updates music & sounds
 //
 void S_UpdateSounds (AActor *listener);
-
-void S_RestoreEvictedChannels();
 
 // [RH] S_sfx "maintenance" routines
 void S_ParseSndInfo (bool redefine);

@@ -8,6 +8,7 @@
 #include "tarray.h"
 
 class FileReader;
+struct FISoundChannel;
 
 // For convenience, this structure matches FMOD_REVERB_PROPERTIES.
 // Since I can't very well #include system-specific stuff in the
@@ -77,13 +78,6 @@ struct SoundListener
 	ReverbContainer *Environment;
 };
 
-// Default rolloff information.
-struct FRolloffInfo
-{
-	int RolloffType;
-	float MinDistance;
-	union { float MaxDistance; float RolloffFactor; };
-};
 
 struct SoundHandle
 {
@@ -96,20 +90,6 @@ struct SoundHandle
 	{ return data == rhs.data; }
 	bool operator!=(const SoundHandle &rhs) const
 	{ return !(*this == rhs); }
-};
-
-struct FISoundChannel
-{
-	void		*SysChannel;	// Channel information from the system interface.
-	uint64_t	StartTime;		// Sound start time in DSP clocks.
-
-	// The sound interface doesn't use these directly but it needs to pass them to a
-	// callback that can't be passed a sound channel pointer
-	FRolloffInfo Rolloff;
-	float		DistanceScale;
-	float		DistanceSqr;
-	bool		ManualRolloff;
-	int			ChanFlags;
 };
 
 

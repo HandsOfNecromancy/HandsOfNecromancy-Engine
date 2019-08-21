@@ -1227,6 +1227,7 @@ set (PCH_SOURCES
 	sound/music/i_music.cpp
 	sound/music/i_soundfont.cpp
 	sound/backend/i_sound.cpp
+	sound/backend/i_channellist.cpp
 	sound/mididevices/music_adlmidi_mididevice.cpp
 	sound/mididevices/music_opldumper_mididevice.cpp
 	sound/mididevices/music_opl_mididevice.cpp

@@ -248,7 +248,7 @@ private:
 	void LoadReverb(const ReverbContainer *env);
 	void FreeSource(ALuint source);
 	void PurgeStoppedSources();
-	static FSoundChan *FindLowestChannel();
+	FISoundChannel *FindLowestChannel();
 	void ForceStopChannel(FISoundChannel *chan);
 
     std::thread StreamThread;
