@@ -4,6 +4,7 @@
 #define __RESFILE_H
 
 #include "files.h"
+#include "zstring.h"
 
 class FResourceFile;
 class FTexture;

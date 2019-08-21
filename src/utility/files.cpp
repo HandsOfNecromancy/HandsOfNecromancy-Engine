@@ -34,6 +34,7 @@
 */
 
 #include "files.h"
+#include "zstring.h"
 #include "templates.h"
 
 
