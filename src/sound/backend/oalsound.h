@@ -4,6 +4,7 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <vector>
 #include <condition_variable>
 #include <unordered_map>
 
@@ -259,16 +260,16 @@ private:
 	ALCdevice *Device;
 	ALCcontext *Context;
 
-	TArray<ALuint> Sources;
+	std::vector<ALuint> Sources;
 
 	ALfloat SfxVolume;
 	ALfloat MusicVolume;
 
 	int SFXPaused;
-	TArray<ALuint> FreeSfx;
-	TArray<ALuint> PausableSfx;
-	TArray<ALuint> ReverbSfx;
-	TArray<ALuint> SfxGroup;
+	std::vector<ALuint> FreeSfx;
+	std::vector<ALuint> PausableSfx;
+	std::vector<ALuint> ReverbSfx;
+	std::vector<ALuint> SfxGroup;
 
 	int UpdateTimeMS;
 	using SourceTimeMap = std::unordered_map<ALuint,int64_t>;
@@ -284,7 +285,7 @@ private:
 
     bool WasInWater;
 
-    TArray<OpenALSoundStream*> Streams;
+    std::vector<OpenALSoundStream*> Streams;
     friend class OpenALSoundStream;
 
 	ALCdevice *InitDevice();
