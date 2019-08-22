@@ -241,10 +241,17 @@ void S_NoiseDebug (void)
 	listener = players[consoleplayer].camera->SoundPos();
 
 	// Display the oldest channel first.
+	// This function wants to step through this list backwards.
+	// Rather than hacking around with the pointers, let's collect everything in an array first
+	// and then iterate over that backwards.
+	TArray<FSoundChan *> list;
 	for (chan = ChannelList.Channels(); chan->Next() != NULL; chan = chan->Next())
-	{ }
-	while (y < SCREENHEIGHT - 16)
 	{
+		list.Push(chan);
+	}
+	for(int i = (int)list.Size()-1; i >= 0 && y < SCREENHEIGHT - 16; i--)
+	{
+		auto chan = list[i];
 		char temp[32];
 
 		CalcPosVel(chan, &origin, NULL);
@@ -302,15 +309,15 @@ void S_NoiseDebug (void)
 
 		// Flags
 		mysnprintf(temp, countof(temp), "%s3%sZ%sU%sM%sN%sA%sL%sE%sV",
-			(chan->ChanFlags & CHAN_IS3D)			? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
-			(chan->ChanFlags & CHAN_LISTENERZ)		? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
-			(chan->ChanFlags & CHAN_UI)				? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
-			(chan->ChanFlags & CHAN_MAYBE_LOCAL)	? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
-			(chan->ChanFlags & CHAN_NOPAUSE)		? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
-			(chan->ChanFlags & CHAN_AREA)			? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
-			(chan->ChanFlags & CHAN_LOOP)			? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
-			(chan->ChanFlags & CHAN_EVICTED)		? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
-			(chan->ChanFlags & CHAN_VIRTUAL)		? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK);
+				   (chan->ChanFlags & CHAN_IS3D)		? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
+				   (chan->ChanFlags & CHAN_LISTENERZ)	? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
+				   (chan->ChanFlags & CHAN_UI)			? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
+				   (chan->ChanFlags & CHAN_MAYBE_LOCAL)	? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
+				   (chan->ChanFlags & CHAN_NOPAUSE)		? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
+				   (chan->ChanFlags & CHAN_AREA)		? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
+				   (chan->ChanFlags & CHAN_LOOP)		? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
+				   (chan->ChanFlags & CHAN_EVICTED)		? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK,
+				   (chan->ChanFlags & CHAN_VIRTUAL)		? TEXTCOLOR_GREEN : TEXTCOLOR_BLACK);
 		screen->DrawText(NewConsoleFont, color, 380, y, temp, TAG_DONE);
 
 		// Audibility
@@ -323,18 +330,9 @@ void S_NoiseDebug (void)
 
 
 		y += NewConsoleFont->GetHeight();
-#if 0
-		// OMG! This godawful hackery needs to be fixed before this can be reactivated.
-		if (chan->PrevChan == &ChannelList.Channels())
-		{
-			break;
-		}
-		chan = (FSoundChan *)((size_t)chan->PrevChan - myoffsetof(FSoundChan, NextChan));
-#else
-		break;
-#endif
 	}
 }
+
 
 static FString LastLocalSndInfo;
 static FString LastLocalSndSeq;
