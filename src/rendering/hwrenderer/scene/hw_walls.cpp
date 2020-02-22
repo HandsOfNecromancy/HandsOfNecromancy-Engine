@@ -41,6 +41,7 @@
 #include "hwrenderer/dynlights/hw_lightbuffer.h"
 #include "hw_renderstate.h"
 #include "hw_skydome.h"
+#include "hw_multithread.h"
 
 //==========================================================================
 //
@@ -288,11 +289,11 @@ void HWWall::DrawWall(HWDrawInfo *di, FRenderState &state, bool translucent)
 {
 	if (screen->BuffersArePersistent())
 	{
-		if (di->Level->HasDynamicLights && !di->isFullbrightScene() && gltexture != nullptr)
+		if (dynlightindex == -1 && di->Level->HasDynamicLights && !di->isFullbrightScene() && gltexture != nullptr)
 		{
 			SetupLights(di, lightdata);
 		}
-		MakeVertices(di, !!(flags & HWWall::HWF_TRANSLUCENT));
+		if (vertcount == 0) MakeVertices(di, !!(flags & HWWall::HWF_TRANSLUCENT));
 	}
 
 	state.SetNormal(glseg.Normal());
@@ -461,7 +462,7 @@ void HWWall::PutWall(HWDrawInfo *di, bool translucent)
     if (di->isFullbrightScene() || (Colormap.LightColor.isWhite() && lightlevel == 255))
         flags &= ~HWF_GLOW;
     
-	if (!screen->BuffersArePersistent())
+	if (!screen->BuffersArePersistent() && gl_multithread < 2)
 	{
 		if (di->Level->HasDynamicLights && !di->isFullbrightScene() && gltexture != nullptr)
 		{
@@ -477,7 +478,12 @@ void HWWall::PutWall(HWDrawInfo *di, bool translucent)
 	else solid = false;
 	if (solid) ProcessDecals(di);
 
-	di->AddWall(this);
+	auto realwall = di->AddWall(this);
+
+	if (gl_multithread >= 2)
+	{
+		bufferJobQueue.AddJob(BufferJob::WallVertexJob, translucent, realwall);
+	}
 
 	lightlist = nullptr;
 	// make sure that following parts of the same linedef do not get this one's vertex and lighting info.

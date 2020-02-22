@@ -40,63 +40,20 @@
 #include "hwrenderer/scene/hw_portal.h"
 #include "hwrenderer/utility/hw_clock.h"
 #include "hwrenderer/data/flatvertices.h"
+#include "hwrenderer/dynlights/hw_dynlightdata.h"
+#include "hw_multithread.h"
 
 #ifdef ARCH_IA32
 #include <immintrin.h>
 #endif // ARCH_IA32
 
-CVAR(Bool, gl_multithread, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
+CVAR(Int, gl_multithread, 1, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 
 thread_local bool isWorkerThread;
-ctpl::thread_pool renderPool(1);
-bool inited = false;
+ctpl::thread_pool renderPool(2);
 
-struct RenderJob
-{
-	enum
-	{
-		FlatJob,
-		WallJob,
-		SpriteJob,
-		ParticleJob,
-		PortalJob,
-		TerminateJob	// inserted when all work is done so that the worker can return.
-	};
-	
-	int type;
-	subsector_t *sub;
-	seg_t *seg;
-};
-
-
-class RenderJobQueue
-{
-	RenderJob pool[300000];	// Way more than ever needed. The largest ever seen on a single viewpoint is around 40000.
-	std::atomic<int> readindex{};
-	std::atomic<int> writeindex{};
-public:
-	void AddJob(int type, subsector_t *sub, seg_t *seg = nullptr)
-	{
-		// This does not check for array overflows. The pool should be large enough that it never hits the limit.
-
-		pool[writeindex] = { type, sub, seg };
-		writeindex++;	// update index only after the value has been written.
-	}
-
-	RenderJob *GetJob()
-	{
-		if (readindex < writeindex) return &pool[readindex++];
-		return nullptr;
-	}
-	
-	void ReleaseAll()
-	{
-		readindex = 0;
-		writeindex = 0;
-	}
-};
-
-static RenderJobQueue jobQueue;	// One static queue is sufficient here. This code will never be called recursively.
+JobQueue<RenderJob, subsector_t*, seg_t*> renderJobQueue;	// One static queue is sufficient here. This code will never be called recursively.
+JobQueue<BufferJob, int, void*> bufferJobQueue;	// One static queue is sufficient here. This code will never be called recursively.
 
 void HWDrawInfo::WorkerThread()
 {
@@ -106,7 +63,7 @@ void HWDrawInfo::WorkerThread()
 	isWorkerThread = true;	// for adding asserts in GL API code. The worker thread may never call any GL API.
 	while (true)
 	{
-		auto job = jobQueue.GetJob();
+		auto job = renderJobQueue.GetJob();
 		if (job == nullptr)
 		{
 #ifdef ARCH_IA32
@@ -192,6 +149,52 @@ void HWDrawInfo::WorkerThread()
 	}
 }
 
+void HWDrawInfo::WorkerThread2()
+{
+	BWTTotal.Clock();
+	isWorkerThread = true;	// for adding asserts in GL API code. The worker thread may never call any GL API.
+	while (true)
+	{
+		auto job = bufferJobQueue.GetJob();
+		if (job == nullptr)
+		{
+#ifdef ARCH_IA32
+			// The queue is empty. But yielding would be too costly here and possibly cause further delays down the line if the thread is halted.
+			// So instead add a few pause instructions and retry immediately.
+			_mm_pause();
+			_mm_pause();
+			_mm_pause();
+			_mm_pause();
+			_mm_pause();
+			_mm_pause();
+			_mm_pause();
+			_mm_pause();
+			_mm_pause();
+			_mm_pause();
+#endif // ARCH_IA32
+		}
+		else switch (job->type)
+		{
+		case RenderJob::TerminateJob:
+			BWTTotal.Unclock();
+			return;
+
+		case BufferJob::WallVertexJob:
+		{
+			auto wall = (HWWall*)job->obj;
+
+			if (Level->HasDynamicLights && !isFullbrightScene() && wall->gltexture != nullptr)
+			{
+				wall->SetupLights(this, lightdata);
+			}
+			wall->MakeVertices(this, !!job->param);
+			break;
+		}
+
+		}
+
+	}
+}
 
 
 
@@ -327,7 +330,7 @@ void HWDrawInfo::AddLine (seg_t *seg, bool portalclip)
 		{
 			if (multithread)
 			{
-				jobQueue.AddJob(RenderJob::WallJob, seg->Subsector, seg);
+				renderJobQueue.AddJob(RenderJob::WallJob, seg->Subsector, seg);
 			}
 			else
 			{
@@ -635,7 +638,7 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 	{
 		if (multithread)
 		{
-			jobQueue.AddJob(RenderJob::ParticleJob, sub, nullptr);
+			renderJobQueue.AddJob(RenderJob::ParticleJob, sub, nullptr);
 		}
 		else
 		{
@@ -661,7 +664,7 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 		{
 			if (multithread)
 			{
-				jobQueue.AddJob(RenderJob::SpriteJob, sub, nullptr);
+				renderJobQueue.AddJob(RenderJob::SpriteJob, sub, nullptr);
 			}
 			else
 			{
@@ -698,7 +701,7 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 
 					if (multithread)
 					{
-						jobQueue.AddJob(RenderJob::FlatJob, sub);
+						renderJobQueue.AddJob(RenderJob::FlatJob, sub);
 					}
 					else
 					{
@@ -727,7 +730,7 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 				{
 					if (multithread)
 					{
-						jobQueue.AddJob(RenderJob::PortalJob, sub, (seg_t *)portal);
+						renderJobQueue.AddJob(RenderJob::PortalJob, sub, (seg_t *)portal);
 					}
 					else
 					{
@@ -740,7 +743,7 @@ void HWDrawInfo::DoSubsector(subsector_t * sub)
 				{
 					if (multithread)
 					{
-						jobQueue.AddJob(RenderJob::PortalJob, sub, (seg_t *)portal);
+						renderJobQueue.AddJob(RenderJob::PortalJob, sub, (seg_t *)portal);
 					}
 					else
 					{
@@ -807,18 +810,40 @@ void HWDrawInfo::RenderBSP(void *node, bool drawpsprites)
 	validcount++;	// used for processing sidedefs only once by the renderer.
 
 	multithread = gl_multithread;
-	if (multithread)
+	if (multithread == 1)
 	{
-		jobQueue.ReleaseAll();
+		renderJobQueue.ReleaseAll();
 		auto future = renderPool.push([&](int id) {
 			WorkerThread();
 		});
 		RenderBSPNode(node);
 
-		jobQueue.AddJob(RenderJob::TerminateJob, nullptr, nullptr);
+		renderJobQueue.AddJob(RenderJob::TerminateJob, nullptr, nullptr);
 		Bsp.Unclock();
 		MTWait.Clock();
 		future.wait();
+		MTWait.Unclock();
+	}
+	else if (multithread > 1)
+	{
+		renderJobQueue.ReleaseAll();
+		bufferJobQueue.ReleaseAll();
+		auto future = renderPool.push([&](int id) {
+			WorkerThread();
+			});
+		auto future2 = renderPool.push([&](int id) {
+			WorkerThread2();
+			});
+		RenderBSPNode(node);
+
+		Bsp.Unclock();
+		MTWait.Clock();
+		// Order is important here: First queue the bsp thread for termination, then wait for it to quit 
+		// and only then queue the buffer thread for termination and wait for it to quit.
+		renderJobQueue.AddJob(RenderJob::TerminateJob, nullptr, nullptr);
+		future.wait();
+		bufferJobQueue.AddJob(BufferJob::TerminateJob, 0, nullptr);
+		future2.wait();
 		MTWait.Unclock();
 	}
 	else

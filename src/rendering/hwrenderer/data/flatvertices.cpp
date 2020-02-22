@@ -361,9 +361,8 @@ void FFlatVertexBuffer::CheckUpdate(sector_t *sector)
 
 std::pair<FFlatVertex *, unsigned int> FFlatVertexBuffer::AllocVertices(unsigned int count)
 {
-	FFlatVertex *p = GetBuffer();
 	auto index = mCurIndex.fetch_add(count);
-	auto offset = index;
+	FFlatVertex* p = GetBuffer(index);
 	if (index + count >= BUFFER_SIZE_TO_USE)
 	{
 		// If a single scene needs 2'000'000 vertices there must be something very wrong. 

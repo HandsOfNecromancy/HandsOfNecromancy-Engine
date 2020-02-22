@@ -35,11 +35,12 @@ EXTERN_CVAR(Bool, gl_seamless)
 //
 //==========================================================================
 
-void HWDrawInfo::AddWall(HWWall *wall)
+HWWall *HWDrawInfo::AddWall(HWWall *wall)
 {
+	HWWall* newwall;
 	if (wall->flags & HWWall::HWF_TRANSLUCENT)
 	{
-		auto newwall = drawlists[GLDL_TRANSLUCENT].NewWall();
+		newwall = drawlists[GLDL_TRANSLUCENT].NewWall();
 		*newwall = *wall;
 	}
 	else
@@ -55,9 +56,10 @@ void HWDrawInfo::AddWall(HWWall *wall)
 		{
 			list = masked ? GLDL_MASKEDWALLS : GLDL_PLAINWALLS;
 		}
-		auto newwall = drawlists[list].NewWall();
+		newwall = drawlists[list].NewWall();
 		*newwall = *wall;
 	}
+	return newwall;
 }
 
 //==========================================================================

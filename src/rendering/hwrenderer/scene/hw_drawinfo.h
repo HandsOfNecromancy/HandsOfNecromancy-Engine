@@ -177,7 +177,7 @@ struct HWDrawInfo
 	BitArray CurrentMapSections;	// this cannot be a single number, because a group of portals with the same displacement may link different sections.
 	area_t	in_area;
 	fixed_t viewx, viewy;	// since the nodes are still fixed point, keeping the view position  also fixed point for node traversal is faster.
-	bool multithread;
+	int multithread;
 
 	std::function<void(HWDrawInfo *, int)> DrawScene = nullptr;
 
@@ -191,6 +191,7 @@ private:
 	sector_t *currentsector;
 
 	void WorkerThread();
+	void WorkerThread2();
 
 	void UnclipSubsector(subsector_t *sub);
 	
@@ -305,7 +306,7 @@ public:
 	void ProcessLowerMinisegs(TArray<seg_t *> &lowersegs);
     void AddSubsectorToPortal(FSectorPortalGroup *portal, subsector_t *sub);
     
-    void AddWall(HWWall *w);
+    HWWall *AddWall(HWWall *w);
     void AddMirrorSurface(HWWall *w);
 	void AddFlat(HWFlat *flat, bool fog);
 	void AddSprite(HWSprite *sprite, bool translucent);

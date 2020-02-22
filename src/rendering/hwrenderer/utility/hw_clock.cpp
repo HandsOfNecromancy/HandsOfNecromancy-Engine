@@ -51,7 +51,7 @@ glcycle_t RenderAll;
 glcycle_t Dirty;
 glcycle_t drawcalls;
 glcycle_t twoD, Flush3D;
-glcycle_t MTWait, WTTotal;
+glcycle_t MTWait, WTTotal, BWTTotal;
 int vertexcount, flatvertices, flatprimitives;
 
 int rendered_lines,rendered_flats,rendered_sprites,render_vertexsplit,render_texsplit,rendered_decals, rendered_portals, rendered_commandbuffers;
