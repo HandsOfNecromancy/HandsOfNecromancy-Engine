@@ -101,11 +101,11 @@ jobs:
         cd build
         mkdir package
         if [[ "${{ runner.os }}" == 'Windows' ]]; then
-          cp ${{ matrix.config.build_type }}/redemption.exe ${{ matrix.config.build_type }}/*.pk3 package
+          cp ${{ matrix.config.build_type }}/handsofdeath.exe ${{ matrix.config.build_type }}/*.pk3 package
         elif [[ "${{ runner.os }}" == 'macOS' ]]; then
-          cp -r redemption.app package
+          cp -r handsofdeath.app package
         elif [[ "${{ runner.os }}" == 'Linux' ]]; then
-          cp redemption *.pk3 package
+          cp handsofdeath *.pk3 package
         fi
 
     - name: Upload Package
