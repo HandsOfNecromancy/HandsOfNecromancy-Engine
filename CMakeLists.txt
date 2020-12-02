@@ -420,7 +420,6 @@ add_subdirectory( libraries/lzma )
 add_subdirectory( libraries/miniz )
 add_subdirectory( tools )
 add_subdirectory( wadsrc )
-add_subdirectory( wadsrc_extra )
 add_subdirectory( src )
 
 if( NOT CMAKE_CROSSCOMPILING )
