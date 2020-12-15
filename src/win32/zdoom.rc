@@ -69,13 +69,13 @@ BEGIN
     "        BEGIN\r\n"
     "            VALUE ""Comments"", ""Thanks to id Software for creating DOOM and then releasing the source code. Thanks also to TeamTNT for creating BOOM, which ZDoom is partially based on. Includes code based on the Cajun Bot 0.97 by Martin Collberg.""\r\n"
     "            VALUE ""CompanyName"", "" ""\r\n"
-    "            VALUE ""FileDescription"", ""Hands of Death""\r\n"
+    "            VALUE ""FileDescription"", ""Hands of Necromancy""\r\n"
     "            VALUE ""FileVersion"", RC_FILEVERSION2\r\n"
-    "            VALUE ""InternalName"", ""Hands of Death""\r\n"
+    "            VALUE ""InternalName"", ""Hands of Necromancy""\r\n"
     "            VALUE ""LegalCopyright"", ""Copyright © 1993-1996 id Software, 1998-2010 Randy Heit, 2002-2010 Christoph Oelckers, et al.""\r\n"
     "            VALUE ""LegalTrademarks"", ""DoomR is a Registered Trademark of id Software, Inc.""\r\n"
-    "            VALUE ""OriginalFilename"", ""handsofdeath.exe""\r\n"
-    "            VALUE ""ProductName"", ""Hands of Death""\r\n"
+    "            VALUE ""OriginalFilename"", ""handsofnecromancy.exe""\r\n"
+    "            VALUE ""ProductName"", ""Hands of Necromancy""\r\n"
     "            VALUE ""ProductVersion"", GIT_VERSION\r\n"
     "        END\r\n"
     "    END\r\n"
@@ -209,7 +209,7 @@ CAPTION "Welcome"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     ICON            IDI_ICON1,IDC_STATIC,7,7,20,20
-    LTEXT           "Welcome to Hands of Death!",IDC_STATIC,42,8,180,8
+    LTEXT           "Welcome to Hands of Necromancy!",IDC_STATIC,42,8,180,8
     LTEXT           "<Version info>",IDC_WELCOME_VERSION,42,18,180,8
     GROUPBOX        "IWAD selection",IDC_STATIC,8,32,208,117
     LTEXT           "Select which game file (IWAD) to run.",IDC_STATIC,12,44,190,8
@@ -342,13 +342,13 @@ BEGIN
         BEGIN
             VALUE "Comments", "Thanks to id Software for creating DOOM and then releasing the source code. Thanks also to TeamTNT for creating BOOM, which ZDoom is partially based on. Includes code based on the Cajun Bot 0.97 by Martin Collberg."
             VALUE "CompanyName", " "
-            VALUE "FileDescription", "Hands of Death " GIT_DESCRIPTION
+            VALUE "FileDescription", "Hands of Necromancy " GIT_DESCRIPTION
             VALUE "FileVersion", RC_FILEVERSION2
-            VALUE "InternalName", "Hands of Death"
+            VALUE "InternalName", "Hands of Necromancy"
             VALUE "LegalCopyright", "Copyright © 1993-1996 id Software, 1998-2010 Randy Heit, 2002-2010 Christoph Oelckers, et al."
             VALUE "LegalTrademarks", "Doom® is a Registered Trademark of id Software, Inc."
-            VALUE "OriginalFilename", "handsofdeath.exe"
-            VALUE "ProductName", "Hands of Death"
+            VALUE "OriginalFilename", "handsofnecromancy.exe"
+            VALUE "ProductName", "Hands of Necromancy"
             VALUE "ProductVersion", GIT_DESCRIPTION
         END
     END

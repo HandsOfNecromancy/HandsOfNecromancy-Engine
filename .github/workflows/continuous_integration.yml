@@ -101,15 +101,15 @@ jobs:
         cd build
         mkdir package
         if [[ "${{ runner.os }}" == 'Windows' ]]; then
-          cp ${{ matrix.config.build_type }}/handsofdeath.exe ${{ matrix.config.build_type }}/*.pk3 package
+          cp ${{ matrix.config.build_type }}/handsofnecromancy.exe ${{ matrix.config.build_type }}/*.pk3 package
         elif [[ "${{ runner.os }}" == 'macOS' ]]; then
-          cp -r handsofdeath.app package
+          cp -r handsofnecromancy.app package
         elif [[ "${{ runner.os }}" == 'Linux' ]]; then
-          cp handsofdeath *.pk3 package
+          cp handsofnecromancy *.pk3 package
         fi
 
     - name: Upload Package
-      if: runner.os == 'Windows'  # Remove to store packages of all targets
+      #if: runner.os == 'Windows'  # Remove to store packages of all targets
       uses: actions/upload-artifact@v1
       with:
         path: build/package
