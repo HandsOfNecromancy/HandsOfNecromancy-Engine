@@ -91,16 +91,16 @@ const char *GetVersionString();
 #define SAVEVER 4560
 
 // This is so that derivates can use the same savegame versions without worrying about engine compatibility
-#define GAMESIG "REDEMPTION"
-#define BASEWAD "redemption.pk3"
+#define GAMESIG "HANDSOFNECROMANCY"
+#define BASEWAD "handsofnecromancy.pk3"
 #define OPTIONALWAD "game_support.pk3"
 #define GZDOOM 1
 #define VR3D_ENABLED
 
 // More stuff that needs to be different for derivatives.
-#define GAMENAME "Redemption"
-#define WGAMENAME L"Redemption"
-#define GAMENAMELOWERCASE "redemption"
+#define GAMENAME "Hands of Necromancy"
+#define WGAMENAME L"Hands of Necromancy"
+#define GAMENAMELOWERCASE "handsofnecromancy"
 #define FORUM_URL "http://forum.zdoom.org/"
 #define BUGS_FORUM_URL	"http://forum.zdoom.org/viewforum.php?f=2"
 
