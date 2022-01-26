@@ -50,7 +50,7 @@
 #include "texturemanager.h"
 #include "printf.h"
 #include "i_interface.h"
-#include "templates.h"
+
 
 
 bool CheckSkipGameOptionBlock(FScanner& sc);
@@ -340,6 +340,10 @@ static void DoParseListMenuBody(FScanner &sc, DListMenuDescriptor *desc, bool &s
 		{
 			desc->mCenter = true;
 		}
+		else if (sc.Compare("Selecteditem"))
+		{
+			desc->mSelectedItem = desc->mItems.Size() - 1;
+		}
 		else if (sc.Compare("animatedtransition"))
 		{
 			desc->mAnimatedTransition = true;
@@ -563,8 +567,8 @@ static void DoParseListMenuBody(FScanner &sc, DListMenuDescriptor *desc, bool &s
 							// NB: index has been incremented, so we're not affecting the newly inserted item here.
 							for (unsigned int i = insertIndex; i < desc->mItems.Size(); i++)
 							{
-								auto item = desc->mItems[i];
-								if (item->GetClass()->IsDescendantOf("ListMenuItemSelectable"))
+								auto litem = desc->mItems[i];
+								if (litem->GetClass()->IsDescendantOf("ListMenuItemSelectable"))
 								{
 									desc->mItems[i]->mYpos += desc->mLinespacing;
 								}
@@ -660,9 +664,9 @@ static bool FindMatchingItem(DMenuItemBase *desc)
 	MenuDescriptorList::Pair *pair;
 	while (it.NextPair(pair))
 	{
-		for (auto it : pair->Value->mItems)
+		for (auto item : pair->Value->mItems)
 		{
-			if (it->mAction == name && GetGroup(it) == grp) return true;
+			if (item->mAction == name && GetGroup(item) == grp) return true;
 		}
 	}
 	return false;
@@ -910,7 +914,7 @@ static void ParseOptionSettings(FScanner &sc)
 		else if (sc.Compare("Linespacing"))
 		{
 			sc.MustGetNumber();
-			OptionSettings.mLinespacing = sc.Number;
+			// ignored
 		}
 		else if (sc.Compare("LabelOffset"))
 		{
@@ -1402,6 +1406,7 @@ void M_ParseMenuDefs()
 	DefaultOptionMenuSettings = Create<DOptionMenuDescriptor>();
 	DefaultListMenuSettings->Reset();
 	DefaultOptionMenuSettings->Reset();
+	OptionSettings.mLinespacing = 17;
 
 	int IWADMenu = fileSystem.CheckNumForName("MENUDEF", ns_global, fileSystem.GetIwadNum());
 

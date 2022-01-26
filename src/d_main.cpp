@@ -128,6 +128,7 @@ EXTERN_CVAR(Int, vr_mode)
 EXTERN_CVAR(Bool, cl_customizeinvulmap)
 EXTERN_CVAR(Bool, log_vgafont)
 EXTERN_CVAR(Bool, dlg_vgafont)
+CVAR(Int, vid_renderer, 1, 0)	// for some stupid mods which threw caution out of the window...
 
 void DrawHUD();
 void D_DoAnonStats();
@@ -383,9 +384,9 @@ void D_Render(std::function<void()> action, bool interpolate)
 	for (auto Level : AllLevels())
 	{
 		// Check for the presence of dynamic lights at the start of the frame once.
-		if ((gl_lights && vid_rendermode == 4) || (r_dynlights && vid_rendermode != 4))
+		if ((gl_lights && vid_rendermode == 4) || (r_dynlights && vid_rendermode != 4) || Level->LightProbes.Size() > 0)
 		{
-			Level->HasDynamicLights = !!Level->lights;
+			Level->HasDynamicLights = Level->lights || Level->LightProbes.Size() > 0;
 		}
 		else Level->HasDynamicLights = false;	// lights are off so effectively we have none.
 		if (interpolate) Level->interpolator.DoInterpolations(I_GetTimeFrac());
@@ -1031,18 +1032,31 @@ void D_Display ()
 		// draw pause pic
 		if ((paused || pauseext) && menuactive == MENU_Off)
 		{
-			auto tex = TexMan.GetGameTextureByName(gameinfo.PauseSign, true);
-			double x = (SCREENWIDTH - tex->GetDisplayWidth() * CleanXfac)/2 +
-				tex->GetDisplayLeftOffset() * CleanXfac;
-			DrawTexture(twod, tex, x, 4, DTA_CleanNoMove, true, TAG_DONE);
-			if (paused && multiplayer)
+			// [MK] optionally let the status bar handle this
+			bool skip = false;
+			IFVIRTUALPTR(StatusBar, DBaseStatusBar, DrawPaused)
 			{
-				FFont *font = generic_ui? NewSmallFont : SmallFont;
-				FString pstring = GStrings("TXT_BY");
-				pstring.Substitute("%s", players[paused - 1].userinfo.GetName());
-				DrawText(twod, font, CR_RED,
-					(twod->GetWidth() - font->StringWidth(pstring)*CleanXfac) / 2,
-					(tex->GetDisplayHeight() * CleanYfac) + 4, pstring, DTA_CleanNoMove, true, TAG_DONE);
+				VMValue params[] { (DObject*)StatusBar, paused-1 };
+				int rv;
+				VMReturn ret(&rv);
+				VMCall(func, params, countof(params), &ret, 1);
+				skip = !!rv;
+			}
+			if ( !skip )
+			{
+				auto tex = TexMan.GetGameTextureByName(gameinfo.PauseSign, true);
+				double x = (SCREENWIDTH - tex->GetDisplayWidth() * CleanXfac)/2 +
+					tex->GetDisplayLeftOffset() * CleanXfac;
+				DrawTexture(twod, tex, x, 4, DTA_CleanNoMove, true, TAG_DONE);
+				if (paused && multiplayer)
+				{
+					FFont *font = generic_ui? NewSmallFont : SmallFont;
+					FString pstring = GStrings("TXT_BY");
+					pstring.Substitute("%s", players[paused - 1].userinfo.GetName());
+					DrawText(twod, font, CR_RED,
+						(twod->GetWidth() - font->StringWidth(pstring)*CleanXfac) / 2,
+						(tex->GetDisplayHeight() * CleanYfac) + 4, pstring, DTA_CleanNoMove, true, TAG_DONE);
+				}
 			}
 		}
 
@@ -3805,4 +3819,99 @@ void I_UpdateWindowTitle()
 	}
 	*dstp = 0;
 	I_SetWindowTitle(copy.Data());
+}
+
+extern int playerfornode[MAXNETNODES];
+
+void DoPossess(int tplayer)
+{
+	if (tplayer == consoleplayer)
+	{
+		Printf("Already possessing player %i\n", consoleplayer);
+		return;
+	}
+
+	if (!(players[consoleplayer].mo->Level->PlayerInGame(tplayer)))
+	{
+		Printf("No player %i in game\n", tplayer);
+		return;
+	}
+
+	Printf("Becoming player %i\n", tplayer);
+
+	if (players[tplayer].Bot)
+	{
+		players[tplayer].Bot->Destroy();
+		players[tplayer].Bot = nullptr;
+	}
+
+	Net_ClearBuffers();
+
+	nodeforplayer[tplayer] = 0;
+	playerfornode[0] = Net_Arbitrator = doomcom.consoleplayer = consoleplayer = tplayer;
+
+	players[consoleplayer].settings_controller = true;
+
+	if (gamestate == GS_LEVEL)
+	{
+		S_UpdateSounds(players[consoleplayer].camera);
+		StatusBar->AttachToPlayer(&players[consoleplayer]);
+		players[consoleplayer].SendPitchLimits();
+	}
+}
+
+CCMD(possess)
+{
+	if (netgame)
+	{
+		Printf("Cannot use this command in a netgame!\n");
+		return;
+	}
+
+	if (argv.argc() != 2)
+	{
+		Printf("Current player: %i\n", consoleplayer);
+		return;
+	}
+
+	DoPossess(atoi(argv[1]));
+}
+
+CCMD(possessnext)
+{
+	if (netgame)
+	{
+		Printf("Cannot use this command in a netgame!\n");
+		return;
+	}
+
+	for (int i = consoleplayer + 1; i < consoleplayer + MAXPLAYERS; i++)
+	{
+		if ((players[consoleplayer].mo->Level->PlayerInGame(i % MAXPLAYERS)))
+		{
+			DoPossess(i % MAXPLAYERS);
+			break;
+		}
+	}
+}
+
+CCMD(botothers)
+{
+	if (netgame)
+	{
+		Printf("Cannot use this command in a netgame!\n");
+		return;
+	}
+
+	for (int i = 0; i < MAXPLAYERS; i++)
+	{
+		if ((consoleplayer != i) && (players[consoleplayer].mo->Level->PlayerInGame(i)))
+		{
+			if (!(players[i].Bot))
+			{
+				players[i].Bot = players[consoleplayer].mo->Level->CreateThinker<DBot>();
+				players[i].Bot->player = &players[i];
+			}
+		}
+	}
 }
