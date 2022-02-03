@@ -64,6 +64,10 @@ static const GUID FOLDERID_Pictures = { 0x33e28130, 0x4e1e, 0x4676, 0x83, 0x5a, 
 
 bool UseKnownFolders()
 {
+	// modern windows convention dictates that we use known folders unconditionally. no "portable program" usage.
+	// this will also make the program compatible for cloud saves
+	return true;
+#if 0
 	// Cache this value so the semantics don't change during a single run
 	// of the program. (e.g. Somebody could add write access while the
 	// program is running.)
@@ -108,6 +112,7 @@ bool UseKnownFolders()
 	if (!batchrun) Printf("Using known folders for storage\n");
 	iswritable = false;
 	return true;
+#endif
 }
 
 //===========================================================================
