@@ -145,6 +145,28 @@ FBaseCVar::~FBaseCVar ()
 	}
 }
 
+void FBaseCVar::SetCallback(void (*callback)(FBaseCVar&))
+{
+	m_Callback = callback;
+	m_UseCallback = true;
+}
+
+void FBaseCVar::ClearCallback()
+{
+	m_Callback = nullptr;
+	m_UseCallback = false;
+}
+
+void FBaseCVar::SetExtraDataPointer(void *pointer)
+{
+	m_ExtraDataPointer = pointer;
+}
+
+void* FBaseCVar::GetExtraDataPointer()
+{
+	return m_ExtraDataPointer;
+}
+
 const char *FBaseCVar::GetHumanString(int precision) const
 {
 	return GetGenericRep(CVAR_String).String;
