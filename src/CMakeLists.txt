@@ -1515,7 +1515,7 @@ source_group("Source Files" FILES ${CMAKE_CURRENT_BINARY_DIR}/sc_man_scanner.h c
 
 # allow zmusic.so to be loaded from executable folder at runtime
 add_custom_command(TARGET zdoom POST_BUILD
-	COMMAND patchelf --set-rpath \$ORIGIN ${ZDOOM_OUTPUT_DIR}/${ZDOOM_EXE_NAME}
+	COMMAND patchelf --set-rpath \\$$ORIGIN ${ZDOOM_OUTPUT_DIR}/${ZDOOM_EXE_NAME}
 	COMMENT "Patching RPath for ZMusic.so..."
 )
 
