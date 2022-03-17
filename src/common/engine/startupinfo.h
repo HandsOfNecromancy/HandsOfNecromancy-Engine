@@ -11,10 +11,13 @@ struct FStartupInfo
 	FString Song;
 	FString con;
 	FString def;
+	FString DiscordAppId = nullptr;
+	FString SteamAppId = nullptr;
 	int Type;
 	int LoadLights = -1;
 	int LoadBrightmaps = -1;
 	int LoadWidescreen = -1;
+	int modern = 0;
 	enum
 	{
 		DefaultStartup,
