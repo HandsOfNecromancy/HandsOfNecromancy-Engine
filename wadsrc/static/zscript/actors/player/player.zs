@@ -1999,6 +1999,10 @@ class PlayerPawn : Actor
 		Inventory item, next;
 		let p = player;
 
+		if (p.morphTics != 0)
+		{ // Undo morph
+			Unmorph(self, 0, true);
+		}
 		// 'self' will be no longer valid from here on in case of an unmorph
 		let me = p.mo;
 
