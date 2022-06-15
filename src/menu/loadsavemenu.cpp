@@ -50,6 +50,8 @@
 // Save name length limit for old binary formats.
 #define OLDSAVESTRINGSIZE		24
 
+#define ALLOW_CROSS_GAME
+
 //=============================================================================
 //
 // M_ReadSaveStrings
@@ -111,6 +113,7 @@ void FSavegameManager::ReadSaveStrings()
 							// old, incompatible savegame. List as not usable.
 							oldVer = true;
 						}
+						#ifndef ALLOW_CROSS_GAME
 						else if (iwad.CompareNoCase(fileSystem.GetResourceFileName(fileSystem.GetIwadNum())) == 0)
 						{
 							missing = !G_CheckSaveGameWads(arc, false);
@@ -120,6 +123,12 @@ void FSavegameManager::ReadSaveStrings()
 							// different game. Skip this.
 							continue;
 						}
+						#else
+						else
+						{
+							missing = !G_CheckSaveGameWads(arc, false);
+						}
+						#endif
 
 						FSaveGameNode *node = new FSaveGameNode;
 						node->Filename = filepath;
