@@ -989,7 +989,7 @@ DEFINE_ACTION_FUNCTION(DOptionMenuItemCommand, DoCommand)
 	}
 
 	UnsafeExecutionScope scope(unsafe);
-	C_DoCommand(cmd);
+	AddCommandString(cmd);
 	return 0;
 }
 
