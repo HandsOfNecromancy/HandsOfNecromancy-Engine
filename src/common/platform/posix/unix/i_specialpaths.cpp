@@ -166,9 +166,11 @@ FString M_GetAutoexecPath()
 FString M_GetConfigPath(bool for_reading)
 {
 	FString localconfig;
-	localconfig = progdir + "/" GAMENAMELOWERCASE "_linux.ini";
-	if (for_reading && !(FileExists(GetUserFile(GAMENAMELOWERCASE ".ini")))
-		if FileExists(localconfig) return localconfig;
+	const char* staticsuffix = "/" GAMENAMELOWERCASE "_linux.ini";
+	localconfig = progdir + staticsuffix;
+	if (for_reading && !(FileExists(GetUserFile(GAMENAMELOWERCASE ".ini"))))
+		if (FileExists(localconfig))
+			return localconfig;
 	return GetUserFile(GAMENAMELOWERCASE ".ini");
 }
 
