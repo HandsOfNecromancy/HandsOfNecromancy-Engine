@@ -159,8 +159,6 @@ inline DVector3 AActor::Vec3Angle(double length, DAngle angle, double dz, bool a
 
 inline bool AActor::isFrozen() const
 {
-	if (freezetics > 0)
-		return true;
 	if (!(flags5 & MF5_NOTIMEFREEZE))
 	{
 		auto state = Level->isFrozen();
