@@ -1182,6 +1182,7 @@ bool AActor::Grind(bool items)
 			flags3 |= MF3_DONTGIB;
 			Height = 0;
 			radius = 0;
+			Vel.Zero();
 			return false;
 		}
 
@@ -1208,6 +1209,7 @@ bool AActor::Grind(bool items)
 			flags3 |= MF3_DONTGIB;
 			Height = 0;
 			radius = 0;
+			Vel.Zero();
 			SetState (state);
 			if (isgeneric)	// Not a custom crush state, so colorize it appropriately.
 			{
@@ -1244,6 +1246,7 @@ bool AActor::Grind(bool items)
 				flags3 |= MF3_DONTGIB;
 				Height = 0;
 				radius = 0;
+				Vel.Zero();
 				return false;
 			}
 
