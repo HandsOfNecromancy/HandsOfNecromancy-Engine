@@ -132,6 +132,8 @@ public:
 
 	VkPPRenderPassSetup* GetPPRenderPass(const VkPPRenderPassKey& key);
 
+	VulkanPipelineCache* GetCache() { return PipelineCache.get(); }
+
 private:
 	VulkanFrameBuffer* fb = nullptr;
 
@@ -140,4 +142,7 @@ private:
 	std::vector<VkVertexFormat> VertexFormats;
 
 	std::map<VkPPRenderPassKey, std::unique_ptr<VkPPRenderPassSetup>> PPRenderPassSetup;
+
+	FString CacheFilename;
+	std::unique_ptr<VulkanPipelineCache> PipelineCache;
 };
