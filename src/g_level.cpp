@@ -545,6 +545,7 @@ void G_InitNew (const char *mapname, bool bTitleLevel)
 	if (primaryLevel->info != nullptr)
 		staticEventManager.WorldUnloaded(FString());	// [MK] don't pass the new map, as it's not a level transition
 
+	UnlatchCVars ();
 	if (!savegamerestore)
 	{
 		G_ClearHubInfo();
@@ -562,7 +563,6 @@ void G_InitNew (const char *mapname, bool bTitleLevel)
 			mapname = redirectmap->MapName;
 	}
 
-	UnlatchCVars ();
 	G_VerifySkill();
 	UnlatchCVars ();
 	globalfreeze = globalchangefreeze = 0;
