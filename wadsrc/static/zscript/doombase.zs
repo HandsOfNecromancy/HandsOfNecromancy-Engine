@@ -336,6 +336,7 @@ struct LevelInfo native
 	native readonly int flags;
 	native readonly int flags2;
 	native readonly int flags3;
+	native readonly int vkdflags;
 	native readonly String Music;
 	native readonly String LevelName;
 	native readonly String AuthorName;
@@ -470,6 +471,9 @@ struct LevelLocals native
 	native readonly int compatflags;
 	native readonly int compatflags2;
 	native readonly LevelInfo info;
+
+	native bool nousersave;
+	native bool noautomap;
 
 	native String GetUDMFString(int type, int index, Name key);
 	native int GetUDMFInt(int type, int index, Name key);

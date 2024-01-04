@@ -1605,6 +1605,11 @@ public:
 
 	bool				hasmodel;
 
+	struct
+	{
+		DVector3 Pos = DVector3(-12345678.0, -12345678.0, -12345678.0);
+		uint64_t Bits = 0;
+	} StaticLightsTraceCache;
 };
 
 class FActorIterator

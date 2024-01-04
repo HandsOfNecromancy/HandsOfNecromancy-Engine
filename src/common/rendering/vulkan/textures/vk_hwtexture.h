@@ -65,12 +65,13 @@ public:
 	VkMaterial(VulkanRenderDevice* fb, FGameTexture* tex, int scaleflags);
 	~VkMaterial();
 
-	VulkanDescriptorSet* GetDescriptorSet(const FMaterialState& state);
-
 	void DeleteDescriptors() override;
 
 	VulkanRenderDevice* fb = nullptr;
 	std::list<VkMaterial*>::iterator it;
+
+	VulkanDescriptorSet* GetDescriptorSet(const FMaterialState& state);
+	int GetBindlessIndex(const FMaterialState& state);
 
 private:
 	struct DescriptorEntry
@@ -78,14 +79,18 @@ private:
 		int clampmode;
 		intptr_t remap;
 		std::unique_ptr<VulkanDescriptorSet> descriptor;
+		int bindlessIndex;
 
-		DescriptorEntry(int cm, intptr_t f, std::unique_ptr<VulkanDescriptorSet>&& d)
+		DescriptorEntry(int cm, intptr_t f, std::unique_ptr<VulkanDescriptorSet>&& d, int index)
 		{
 			clampmode = cm;
 			remap = f;
 			descriptor = std::move(d);
+			bindlessIndex = index;
 		}
 	};
+
+	DescriptorEntry& GetDescriptorEntry(const FMaterialState& state);
 
 	std::vector<DescriptorEntry> mDescriptorSets;
 };

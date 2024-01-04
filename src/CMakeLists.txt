@@ -324,6 +324,8 @@ if (HAVE_VULKAN)
 	list( APPEND PROJECT_LIBRARIES "zvulkan" )
 endif()
 
+list( APPEND PROJECT_LIBRARIES "zwidget" )
+
 # ZMUSIC
 
 if( MSVC )
@@ -410,10 +412,8 @@ set( PLAT_WIN32_SOURCES
 	common/platform/win32/i_system.cpp
 	common/platform/win32/i_specialpaths.cpp
 	common/platform/win32/st_start.cpp
-	common/platform/win32/gl_sysfb.cpp
 	common/platform/win32/base_sysfb.cpp
 	common/platform/win32/win32basevideo.cpp
-	common/platform/win32/win32glvideo.cpp
 	)
 
 if (HAVE_VULKAN)
@@ -435,13 +435,13 @@ set( PLAT_POSIX_SOURCES
 	common/platform/posix/i_system_posix.cpp )
 set( PLAT_SDL_SOURCES
 	common/platform/posix/sdl/crashcatcher.c
+	common/platform/posix/sdl/base_sysfb.cpp
 	common/platform/posix/sdl/hardware.cpp
 	common/platform/posix/sdl/i_gui.cpp
 	common/platform/posix/sdl/i_input.cpp
 	common/platform/posix/sdl/i_joystick.cpp
 	common/platform/posix/sdl/i_main.cpp
 	common/platform/posix/sdl/i_system.cpp
-	common/platform/posix/sdl/sdlglvideo.cpp
 	common/platform/posix/sdl/st_start.cpp )
 set( PLAT_UNIX_SOURCES
 	common/platform/posix/unix/i_specialpaths.cpp
@@ -589,6 +589,7 @@ file( GLOB HEADER_FILES
 	common/models/*.h
 	common/textures/*.h
 	common/startscreen/*.h
+	common/widgets/*.h
 	common/textures/hires/hqnx/*.h
 	common/textures/hires/hqnx_asm/*.h
 	common/textures/hires/xbr/*.h
@@ -598,12 +599,14 @@ file( GLOB HEADER_FILES
 	common/thirdparty/libsmackerdec/include/*.h
 	common/thirdparty/utf8proc/*.h
 	common/rendering/*.h
-	common/rendering/gl_load/*.h
-	common/rendering/gles/*.h
 	common/rendering/hwrenderer/data/*.h
 	common/rendering/vulkan/*.h
-	common/rendering/vulkan/system/*.h
-	common/rendering/vulkan/renderer/*.h
+	common/rendering/vulkan/buffers/*.h
+	common/rendering/vulkan/commands/*.h
+	common/rendering/vulkan/descriptorsets/*.h
+	common/rendering/vulkan/framebuffers/*.h
+	common/rendering/vulkan/pipelines/*.h
+	common/rendering/vulkan/samplers/*.h
 	common/rendering/vulkan/shaders/*.h
 	common/rendering/vulkan/textures/*.h
 	common/scripting/core/*h
@@ -717,11 +720,11 @@ set( FASTMATH_SOURCES
 	common/textures/hires/hqnx/hq4x.cpp
 	common/textures/hires/xbr/xbrz.cpp
 	common/textures/hires/xbr/xbrz_old.cpp
-	common/rendering/gl_load/gl_load.c
 	rendering/hwrenderer/hw_dynlightdata.cpp
 	rendering/hwrenderer/scene/hw_bsp.cpp
 	rendering/hwrenderer/scene/hw_fakeflat.cpp
 	rendering/hwrenderer/scene/hw_decal.cpp
+	rendering/hwrenderer/scene/hw_drawcontext.cpp
 	rendering/hwrenderer/scene/hw_drawinfo.cpp
 	rendering/hwrenderer/scene/hw_drawlist.cpp
 	rendering/hwrenderer/scene/hw_clipper.cpp
@@ -740,47 +743,29 @@ set( FASTMATH_SOURCES
 	
 #Vulkan stuff must go into a separate list because it needs to be disabled for some platforms
 set (VULKAN_SOURCES
-	common/rendering/vulkan/system/vk_renderdevice.cpp
-	common/rendering/vulkan/system/vk_commandbuffer.cpp
-	common/rendering/vulkan/system/vk_hwbuffer.cpp
-	common/rendering/vulkan/system/vk_buffer.cpp
-	common/rendering/vulkan/renderer/vk_renderstate.cpp
-	common/rendering/vulkan/renderer/vk_renderpass.cpp
-	common/rendering/vulkan/renderer/vk_streambuffer.cpp
-	common/rendering/vulkan/renderer/vk_postprocess.cpp
-	common/rendering/vulkan/renderer/vk_pprenderstate.cpp
-	common/rendering/vulkan/renderer/vk_descriptorset.cpp
-	common/rendering/vulkan/renderer/vk_raytrace.cpp
+	common/rendering/vulkan/vk_renderdevice.cpp
+	common/rendering/vulkan/vk_renderstate.cpp
+	common/rendering/vulkan/vk_postprocess.cpp
+	common/rendering/vulkan/vk_pprenderstate.cpp
+	common/rendering/vulkan/vk_levelmesh.cpp
+	common/rendering/vulkan/vk_lightmapper.cpp
+	common/rendering/vulkan/commands/vk_commandbuffer.cpp
+	common/rendering/vulkan/buffers/vk_rsbuffers.cpp
+	common/rendering/vulkan/buffers/vk_hwbuffer.cpp
+	common/rendering/vulkan/buffers/vk_buffer.cpp	
+	common/rendering/vulkan/samplers/vk_samplers.cpp
+	common/rendering/vulkan/descriptorsets/vk_descriptorset.cpp
+	common/rendering/vulkan/pipelines/vk_renderpass.cpp
+	common/rendering/vulkan/pipelines/vk_pprenderpass.cpp
 	common/rendering/vulkan/shaders/vk_shader.cpp
 	common/rendering/vulkan/shaders/vk_ppshader.cpp
-	common/rendering/vulkan/textures/vk_samplers.cpp
 	common/rendering/vulkan/textures/vk_hwtexture.cpp
 	common/rendering/vulkan/textures/vk_pptexture.cpp
 	common/rendering/vulkan/textures/vk_imagetransition.cpp
 	common/rendering/vulkan/textures/vk_renderbuffers.cpp
 	common/rendering/vulkan/textures/vk_texture.cpp
-	common/rendering/vulkan/textures/vk_framebuffer.cpp
+	common/rendering/vulkan/framebuffers/vk_framebuffer.cpp
 )
-
-if (HAVE_GLES2)
-	set (GLES_SOURCES
-		common/rendering/gles/gles_system.cpp
-		common/rendering/gles/gles_renderer.cpp
-		common/rendering/gles/gles_framebuffer.cpp
-		common/rendering/gles/gles_renderstate.cpp
-		common/rendering/gles/gles_renderbuffers.cpp
-		common/rendering/gles/gles_postprocess.cpp
-		common/rendering/gles/gles_postprocessstate.cpp
-		common/rendering/gles/gles_buffers.cpp
-		common/rendering/gles/gles_hwtexture.cpp
-		common/rendering/gles/gles_shader.cpp
-		common/rendering/gles/gles_shaderprogram.cpp
-		common/rendering/gles/gles_samplers.cpp
-		common/rendering/gles/glad/src/glad.c
-	)
-
-	list (APPEND FASTMATH_SOURCES ${GLES_SOURCES})
-endif()
 
 if (HAVE_VULKAN)
 	list (APPEND FASTMATH_SOURCES ${VULKAN_SOURCES})
@@ -876,7 +861,6 @@ set (PCH_SOURCES
 	playsim/mapthinkers/dsectoreffect.cpp
 	playsim/a_pickups.cpp
 	playsim/a_action.cpp
-	playsim/a_corona.cpp
 	playsim/a_decals.cpp
 	playsim/a_dynlight.cpp
 	playsim/a_flashfader.cpp
@@ -906,6 +890,7 @@ set (PCH_SOURCES
 	rendering/hwrenderer/hw_vertexbuilder.cpp
 	rendering/hwrenderer/doom_aabbtree.cpp
 	rendering/hwrenderer/doom_levelmesh.cpp
+	rendering/hwrenderer/doom_levelsubmesh.cpp
 	rendering/hwrenderer/hw_models.cpp
 	rendering/hwrenderer/hw_precache.cpp
 	rendering/hwrenderer/scene/hw_lighting.cpp
@@ -993,11 +978,17 @@ set (PCH_SOURCES
 	common/startscreen/startscreen_strife.cpp
 	common/startscreen/startscreen_generic.cpp
 	common/startscreen/endoom.cpp
+	common/widgets/launcherwindow.cpp
+	common/widgets/errorwindow.cpp
+	common/widgets/netstartwindow.cpp
+	common/widgets/widgetresourcedata.cpp
 	common/fonts/singlelumpfont.cpp
 	common/fonts/singlepicfont.cpp
 	common/fonts/specialfont.cpp
 	common/fonts/font.cpp
 	common/fonts/hexfont.cpp
+	common/fonts/ttffont.cpp
+	common/fonts/schrift.cpp
 	common/fonts/v_font.cpp
 	common/fonts/v_text.cpp	
 	common/textures/hw_ihwtexture.cpp
@@ -1074,6 +1065,7 @@ set (PCH_SOURCES
 	common/utility/s_playlist.cpp
 	common/utility/name.cpp
 	common/utility/r_memory.cpp
+	common/utility/bounds.cpp
 	common/thirdparty/base64.cpp
 	common/thirdparty/md5.cpp
  	common/thirdparty/superfasthash.cpp
@@ -1116,34 +1108,20 @@ set (PCH_SOURCES
 	common/rendering/hwrenderer/hw_draw2d.cpp
 	common/rendering/hwrenderer/data/hw_clock.cpp
 	common/rendering/hwrenderer/data/hw_skydome.cpp
-	common/rendering/hwrenderer/data/flatvertices.cpp
-	common/rendering/hwrenderer/data/hw_viewpointbuffer.cpp
 	common/rendering/hwrenderer/data/hw_modelvertexbuffer.cpp
 	common/rendering/hwrenderer/data/hw_cvars.cpp
 	common/rendering/hwrenderer/data/hw_vrmodes.cpp
-	common/rendering/hwrenderer/data/hw_lightbuffer.cpp
-	common/rendering/hwrenderer/data/hw_bonebuffer.cpp
 	common/rendering/hwrenderer/data/hw_aabbtree.cpp
 	common/rendering/hwrenderer/data/hw_shadowmap.cpp
 	common/rendering/hwrenderer/data/hw_shaderpatcher.cpp
+	common/rendering/hwrenderer/data/hw_collision.cpp
+	common/rendering/hwrenderer/data/hw_levelmesh.cpp
+	common/rendering/hwrenderer/data/hw_meshbuilder.cpp
+	common/rendering/hwrenderer/data/hw_mesh.cpp
 	common/rendering/hwrenderer/postprocessing/hw_postprocessshader.cpp
 	common/rendering/hwrenderer/postprocessing/hw_postprocess.cpp
 	common/rendering/hwrenderer/postprocessing/hw_postprocess_cvars.cpp
 	common/rendering/hwrenderer/postprocessing/hw_postprocessshader_ccmds.cpp
-	common/rendering/gl_load/gl_interface.cpp
-	common/rendering/gl/gl_renderer.cpp
-	common/rendering/gl/gl_stereo3d.cpp
-	common/rendering/gl/gl_framebuffer.cpp
-	common/rendering/gl/gl_renderstate.cpp
-	common/rendering/gl/gl_renderbuffers.cpp
-	common/rendering/gl/gl_postprocess.cpp
-	common/rendering/gl/gl_postprocessstate.cpp
-	common/rendering/gl/gl_debug.cpp
-	common/rendering/gl/gl_buffers.cpp
-	common/rendering/gl/gl_hwtexture.cpp
-	common/rendering/gl/gl_samplers.cpp
-	common/rendering/gl/gl_shader.cpp
-	common/rendering/gl/gl_shaderprogram.cpp
 	common/scripting/core/maps.cpp
 	common/scripting/core/dictionary.cpp
 	common/scripting/core/dynarrays.cpp
@@ -1188,6 +1166,7 @@ set( GAME_SOURCES
 	common/thirdparty/stb/stb_sprintf.c
 	common/utility/zstring.cpp
 	common/utility/findfile.cpp
+	common/utility/halffloat.cpp
 	common/thirdparty/math/asin.c
 	common/thirdparty/math/atan.c
 	common/thirdparty/math/const.c
@@ -1281,13 +1260,9 @@ include_directories(
 	common/fonts
 	common/objects
 	common/startscreen
+	common/widgets
 	common/rendering
 	common/rendering/hwrenderer/data
-	common/rendering/gl_load
-	common/rendering/gl
-	common/rendering/gles
-	common/rendering/gles/glad/include
-	common/rendering/gles/Mali_OpenGL_ES_Emulator/include
 	common/scripting/vm
 	common/scripting/jit
 	common/scripting/core
@@ -1316,6 +1291,8 @@ include_directories(
 	scripting/zscript
 	rendering
 	../libraries/ZVulkan/include
+	../libraries/ZWidget/include
+	../libraries/dp_rect_pack
 	${SYSTEM_SOURCES_DIR}
 )
 
@@ -1372,7 +1349,7 @@ endif()
 
 add_custom_command(TARGET zdoom POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
-	${CMAKE_SOURCE_DIR}/soundfont/gzdoom.sf2 $<TARGET_FILE_DIR:zdoom>/soundfonts/gzdoom.sf2
+	${CMAKE_SOURCE_DIR}/soundfont/vkdoom.sf2 $<TARGET_FILE_DIR:zdoom>/soundfonts/vkdoom.sf2
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
 	${CMAKE_SOURCE_DIR}/fm_banks/GENMIDI.GS.wopl $<TARGET_FILE_DIR:zdoom>/fm_banks/GENMIDI.GS.wopl
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -1411,7 +1388,7 @@ if( APPLE )
 	set_target_properties(zdoom PROPERTIES
 		LINK_FLAGS "${LINK_FRAMEWORKS}"
 		MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/posix/osx/zdoom-info.plist"
-		XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "org.drdteam.gzdoom"
+		XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "org.vkdoom.vkdoom"
 		XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "" )
 
 	# Dymanic libraries like libvulkan.dylib or libMoltenVK.dylib will be loaded by dlopen()
@@ -1475,6 +1452,8 @@ source_group("Common\\Fonts" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/co
 source_group("Common\\File System" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/filesystem/.+")
 source_group("Common\\File System\\Include" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/filesystem/include/.+")
 source_group("Common\\File System\\Source" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/filesystem/source/.+")
+source_group("Common\\Startscreen" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/startscreen/.+")
+source_group("Common\\Widgets" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/widgets/.+")
 source_group("Common\\Scripting" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/scripting/.+")
 source_group("Common\\Scripting\\Interface" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/scripting/interface/.+")
 source_group("Common\\Scripting\\Frontend" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/scripting/frontend/.+" FILES ${CMAKE_CURRENT_BINARY_DIR}/zcc-parse.c ${CMAKE_CURRENT_BINARY_DIR}/zcc-parse.h)
@@ -1491,11 +1470,13 @@ source_group("Common\\Rendering" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR
 source_group("Common\\Rendering\\Hardware Renderer" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/hwrenderer/.+")
 source_group("Common\\Rendering\\Hardware Renderer\\Data" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/hwrenderer/data/.+")
 source_group("Common\\Rendering\\Hardware Renderer\\Postprocessing" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/hwrenderer/postprocessing/.+")
-source_group("Common\\Rendering\\OpenGL Loader" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/gl_load/.+")
-source_group("Common\\Rendering\\OpenGL Backend" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/gl/.+")
-source_group("Common\\Rendering\\GLES Backend" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/gles/.+")
-source_group("Common\\Rendering\\Vulkan Renderer\\System" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/system/.+")
-source_group("Common\\Rendering\\Vulkan Renderer\\Renderer" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/renderer/.+")
+source_group("Common\\Rendering\\Vulkan Renderer" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/.+")
+source_group("Common\\Rendering\\Vulkan Renderer\\Buffers" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/buffers/.+")
+source_group("Common\\Rendering\\Vulkan Renderer\\Commands" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/commands/.+")
+source_group("Common\\Rendering\\Vulkan Renderer\\Descriptorsets" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/descriptorsets/.+")
+source_group("Common\\Rendering\\Vulkan Renderer\\Framebuffers" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/framebuffers/.+")
+source_group("Common\\Rendering\\Vulkan Renderer\\Pipelines" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/pipelines/.+")
+source_group("Common\\Rendering\\Vulkan Renderer\\Samplers" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/samplers/.+")
 source_group("Common\\Rendering\\Vulkan Renderer\\Shaders" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/shaders/.+")
 source_group("Common\\Rendering\\Vulkan Renderer\\Textures" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/rendering/vulkan/textures/.+")
 source_group("Common\\Models" REGULAR_EXPRESSION "^${CMAKE_CURRENT_SOURCE_DIR}/common/models/.+")

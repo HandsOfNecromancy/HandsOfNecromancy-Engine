@@ -367,7 +367,7 @@ FStartScreen* GetGameStartScreen(int max_progress)
 			Printf("Error creating start screen: %s\n", err.what());
 			// fall through to the generic startup screen
 		}
-		//return CreateGenericStartScreen(max_progress);
+		return CreateGenericStartScreen(max_progress);
 	}
 	return nullptr;
 }
@@ -656,9 +656,14 @@ void FStartScreen::Render(bool force)
 {
 	auto nowtime = I_msTime();
 	// Do not refresh too often. This function gets called a lot more frequently than the screen can update.
+#ifdef _DEBUG
+	if (nowtime - screen->FrameTime > 3000 || force)
+#else
 	if (nowtime - screen->FrameTime > 30 || force)
+#endif
 	{
 		screen->FrameTime = nowtime;
+		screen->FrameTimeNS = I_nsTime();
 		screen->BeginFrame();
 		twod->ClearClipRect();
 		I_GetEvent();

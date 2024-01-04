@@ -29,7 +29,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows" OR (NOT CMAKE_SYSTEM_NAME AND CMAKE_HOS
 	set(VCPKG_TARGET_TRIPLET "x64-windows-static")
 endif()
 
-project(GZDoom)
+project(VkDoom)
 
 if (WIN32 AND VCPKG_TOOLCHAIN)
 	option(LIBVPX_VCPKG "Use libvpx from vcpkg" OFF)
@@ -353,6 +353,8 @@ mark_as_advanced( FORCE_INTERNAL_ASMJIT )
 if (HAVE_VULKAN)
 	add_subdirectory( libraries/ZVulkan )
 endif()
+
+add_subdirectory( libraries/ZWidget )
 
 add_subdirectory( libraries/discordrpc EXCLUDE_FROM_ALL )
 set( DRPC_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries/discordrpc/include" )

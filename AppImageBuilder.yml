@@ -3,11 +3,11 @@ version: 1
 AppDir:
   path: ./AppDir
   app_info:
-    id: com.Redemption.app
-    name: Redemption
+    id: com.VKDoom.app
+    name: VKDoom
     icon: game_icon.png
     version: latest
-    exec: ./redemption
+    exec: ./vkdoom
     exec_args: $@
   apt:
     arch: amd64
