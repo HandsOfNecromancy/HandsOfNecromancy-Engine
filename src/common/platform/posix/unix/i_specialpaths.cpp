@@ -165,6 +165,12 @@ FString M_GetAutoexecPath()
 
 FString M_GetConfigPath(bool for_reading)
 {
+	FString localconfig;
+	const char* staticsuffix = "/" GAMENAMELOWERCASE "_linux.ini";
+	localconfig = progdir + staticsuffix;
+	if (for_reading && !(FileExists(GetUserFile(GAMENAMELOWERCASE ".ini"))))
+		if (FileExists(localconfig))
+			return localconfig;
 	return GetUserFile(GAMENAMELOWERCASE ".ini");
 }
 
@@ -191,7 +197,7 @@ FString M_GetScreenshotsPath()
 
 FString M_GetSavegamesPath()
 {
-	return NicePath("$HOME/" GAME_DIR "/savegames/");
+	return NicePath("$HOME/" GAME_DIR "/");
 }
 
 //===========================================================================
