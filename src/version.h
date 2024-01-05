@@ -98,7 +98,7 @@ const char *GetVersionString();
 
 // This is so that derivates can use the same savegame versions without worrying about engine compatibility
 #define GAMESIG "HANDSOFNECROMANCY"
-#define BASEWAD "handsofnecromancy.pk3"
+#define BASEWAD "handsofnecromancy-vkdoom.pk3"
 #define OPTIONALWAD "game_support.pk3"
 #define GZDOOM 1
 #define VR3D_ENABLED
