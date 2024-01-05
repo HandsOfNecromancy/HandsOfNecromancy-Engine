@@ -863,6 +863,7 @@ public:
 			memset(th->args, 0, sizeof (th->args));
 		}
 
+#if 0
 		if (th->EdNum == 9890) // ZDRAY INFO thing
 		{
 			FAngle angle = FAngle::fromDeg(float(th->angle));
@@ -872,6 +873,7 @@ public:
 			Level->SunDirection = -FVector3 { pc * angle.Cos(), pc * angle.Sin(), -pitch.Sin() }; // [RaveYard]: is there a dedicated function for this?
 			Level->lightmaps = true;
 		}
+#endif
 	}
 
 	//===========================================================================
