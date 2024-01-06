@@ -255,6 +255,7 @@ struct FDynamicLight
 private:
 	double DistToSeg(const DVector3 &pos, vertex_t *start, vertex_t *end);
 	void CollectWithinRadius(const DVector3 &pos, FSection *section, float radius);
+	void CollectAll(const DVector3 &pos);
 
 public:
 	FCycler m_cycler;
@@ -288,7 +289,7 @@ public:
 	bool owned;
 	bool swapped;
 	bool explicitpitch;
-
+	bool isglobal;
 };
 
 

@@ -652,6 +652,19 @@ void FDynamicLight::CollectWithinRadius(const DVector3 &opos, FSection *section,
 	shadowmapped = hitonesidedback && !DontShadowmap();
 }
 
+void FDynamicLight::CollectAll(const DVector3 &opos)
+{
+	for (int i = 0 ; i < Level->sections.allSections.Size() ; i++)
+	{
+		touching_sector = AddLightNode(&Level->sections.allSections[i].lighthead, &Level->sections.allSections[i], this, touching_sector);
+	}
+	for (int i = 0 ; i < Level->sides.Size(); i++)
+	{
+		touching_sides = AddLightNode(&Level->sides[i].lighthead, &Level->sides[i], this, touching_sides);
+	}
+	shadowmapped = false;
+}
+
 //==========================================================================
 //
 // Link the light into the world
@@ -660,6 +673,9 @@ void FDynamicLight::CollectWithinRadius(const DVector3 &opos, FSection *section,
 
 void FDynamicLight::LinkLight()
 {
+	if (isglobal)
+		return;
+
 	// mark the old light nodes
 	FLightNode * node;
 	
@@ -679,11 +695,20 @@ void FDynamicLight::LinkLight()
 	if (radius>0)
 	{
 		// passing in radius*radius allows us to do a distance check without any calls to sqrt
-		FSection *sect = Level->PointInRenderSubsector(Pos)->section;
 
 		dl_validcount++;
 		::validcount++;
-		CollectWithinRadius(Pos, sect, float(radius*radius));
+
+		if (radius > 700)
+		{
+			isglobal = true;
+			CollectAll(Pos);
+		}
+		else
+		{
+			FSection *sect = Level->PointInRenderSubsector(Pos)->section;
+			CollectWithinRadius(Pos, sect, float(radius*radius));
+		}
 
 	}
 		
@@ -724,6 +749,7 @@ void FDynamicLight::UnlinkLight ()
 	while (touching_sides) touching_sides = DeleteLightNode(touching_sides);
 	while (touching_sector) touching_sector = DeleteLightNode(touching_sector);
 	shadowmapped = false;
+	isglobal = false;
 }
 
 //==========================================================================
