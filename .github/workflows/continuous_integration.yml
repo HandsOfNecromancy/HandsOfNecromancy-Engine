@@ -106,11 +106,11 @@ jobs:
         cd build
         mkdir package
         if [[ "${{ runner.os }}" == 'Windows' ]]; then
-          cp ${{ matrix.config.build_type }}/handsofnecromancy.exe ${{ matrix.config.build_type }}/*.pk3 package
+          cp ${{ matrix.config.build_type }}/handsofnecromancy-vkdoom.exe ${{ matrix.config.build_type }}/*.pk3 package
         elif [[ "${{ runner.os }}" == 'macOS' ]]; then
-          cp -r handsofnecromancy.app package
+          cp -r handsofnecromancy-vkdoom.app package
         elif [[ "${{ runner.os }}" == 'Linux' ]]; then
-          cp handsofnecromancy *.pk3 package
+          cp handsofnecromancy-vkdoom *.pk3 package
         fi
 
     - name: Upload Package
