@@ -1715,6 +1715,9 @@ enum EMIType
 	MITYPE_SETFLAG3,
 	MITYPE_CLRFLAG3,
 	MITYPE_SCFLAGS3,
+	MITYPE_SETFLAGR,
+	MITYPE_CLRFLAGR,
+	MITYPE_SCFLAGSR,
 	MITYPE_SETVKDFLAG,
 	MITYPE_CLRVKDFLAG,
 	MITYPE_SCVKDFLAGS,
@@ -1978,6 +1981,29 @@ void FMapInfoParser::ParseMapDefinition(level_info_t &info)
 
 			case MITYPE_SCFLAGS3:
 				info.flags3 = (info.flags3 & handler->data2) | handler->data1;
+				break;
+
+			case MITYPE_SETFLAGR:
+				if (!CheckAssign())
+				{
+					info.flagsr |= handler->data1;
+				}
+				else
+				{
+					sc.MustGetNumber();
+					if (sc.Number) info.flagsr |= handler->data1;
+					else info.flagsr &= ~handler->data1;
+				}
+				info.flagsr |= handler->data2;
+				break;
+
+			case MITYPE_CLRFLAGR:
+				info.flagsr &= ~handler->data1;
+				info.flagsr |= handler->data2;
+				break;
+
+			case MITYPE_SCFLAGSR:
+				info.flagsr = (info.flagsr & handler->data2) | handler->data1;
 				break;
 
 			case MITYPE_SETVKDFLAG:

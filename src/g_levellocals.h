@@ -618,6 +618,8 @@ public:
 	uint32_t		flags2;
 	uint32_t		flags3;
 
+	uint32_t		flagsr;					// for redemption
+
 	uint32_t		vkdflags;
 
 	uint32_t		fadeto;					// The color the palette fades to (usually black)
