@@ -383,6 +383,7 @@ public:
 	PalEntry ThingColor;	// thing's own color
 	FColormap Colormap;
 	FSpriteModelFrame * modelframe;
+	int modelframeflags;
 	FRenderStyle RenderStyle;
 	int OverrideShader;
 
@@ -420,7 +421,7 @@ public:
 	void CreateVertices(HWDrawInfo *di, FRenderState& state);
 	void PutSprite(HWDrawInfo *di, FRenderState& state, bool translucent);
 	void Process(HWDrawInfo *di, FRenderState& state, AActor* thing,sector_t * sector, area_t in_area, int thruportal = false, bool isSpriteShadow = false);
-	void ProcessParticle (HWDrawInfo *di, FRenderState& state, particle_t *particle, sector_t *sector);//, int shade, int fakeside)
+	void ProcessParticle (HWDrawInfo *di, FRenderState& state, particle_t *particle, sector_t *sector, class DVisualThinker *spr);//, int shade, int fakeside)
 	void AdjustVisualThinker(HWDrawInfo *di, DVisualThinker *spr, sector_t *sector);
 
 	void DrawSprite(HWDrawInfo *di, FRenderState &state, bool translucent);
@@ -433,7 +434,6 @@ struct DecalVertex
 {
 	float x, y, z;
 	float u, v;
-	float lu, lv, lindex;
 };
 
 struct HWDecal

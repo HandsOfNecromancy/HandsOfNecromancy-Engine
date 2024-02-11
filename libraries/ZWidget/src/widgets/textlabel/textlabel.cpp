@@ -33,6 +33,12 @@ TextLabelAlignment TextLabel::GetTextAlignment() const
 	return textAlignment;
 }
 
+double TextLabel::GetPreferredWidth() const
+{
+	Canvas* canvas = GetCanvas();
+	return canvas->measureText(text).width;
+}
+
 double TextLabel::GetPreferredHeight() const
 {
 	return 20.0;
@@ -50,5 +56,5 @@ void TextLabel::OnPaint(Canvas* canvas)
 		x = GetWidth() - canvas->measureText(text).width;
 	}
 
-	canvas->drawText(Point(x, GetHeight() - 5.0), Colorf::fromRgba8(255, 255, 255), text);
+	canvas->drawText(Point(x, GetHeight() - 5.0), GetStyleColor("color"), text);
 }

@@ -1361,6 +1361,8 @@ void DActorModelData::Serialize(FSerializer& arc)
 		("animationIDs", animationIDs)
 		("modelFrameGenerators", modelFrameGenerators)
 		("flags", flags)
+		("overrideFlagsSet", overrideFlagsSet)
+		("overrideFlagsClear", overrideFlagsClear)
 		("curAnim", curAnim)
 		("prevAnim", prevAnim);
 }
@@ -3771,7 +3773,8 @@ void AActor::Tick ()
 	}
 	else
 	{
-
+		if (player)
+			player->crossingPortal = false;
 		if (!player || !(player->cheats & CF_PREDICTING))
 		{
 			// Handle powerup effects here so that the order is controlled

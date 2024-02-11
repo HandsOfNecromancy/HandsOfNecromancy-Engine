@@ -5,12 +5,18 @@
 #include "core/utf8reader.h"
 #include "core/resourcedata.h"
 #include "core/image.h"
+#include "core/truetypefont.h"
+#include "core/pathfill.h"
 #include "window/window.h"
-#include "schrift/schrift.h"
 #include <vector>
 #include <unordered_map>
 #include <stdexcept>
 #include <cstring>
+
+#if defined(__SSE2__) || defined(_M_X64)
+#include <immintrin.h>
+#define USE_SSE2
+#endif
 
 class CanvasTexture
 {
@@ -23,8 +29,12 @@ public:
 class CanvasGlyph
 {
 public:
-	SFT_Glyph id;
-	SFT_GMetrics metrics;
+	struct
+	{
+		double leftSideBearing = 0.0;
+		double yOffset = 0.0;
+		double advanceWidth = 0.0;
+	} metrics;
 
 	double u = 0.0;
 	double v = 0.0;
@@ -36,70 +46,41 @@ public:
 class CanvasFont
 {
 public:
-	CanvasFont(const std::string& fontname, double height) : fontname(fontname), height(height)
+	CanvasFont(const std::string& fontname, double height, std::vector<uint8_t> data) : fontname(fontname), height(height)
 	{
-		data = LoadWidgetFontData(fontname);
-		loadFont(data.data(), data.size());
-
-		try
-		{
-			if (sft_lmetrics(&sft, &textmetrics) < 0)
-				throw std::runtime_error("Could not get truetype font metrics");
-		}
-		catch (...)
-		{
-			sft_freefont(sft.font);
-			throw;
-		}
+		auto tdata = std::make_shared<TrueTypeFontFileData>(std::move(data));
+		ttf = std::make_unique<TrueTypeFont>(tdata);
+		textmetrics = ttf->GetTextMetrics(height);
 	}
 
 	~CanvasFont()
 	{
-		sft_freefont(sft.font);
-		sft.font = nullptr;
 	}
 
 	CanvasGlyph* getGlyph(uint32_t utfchar)
 	{
-		auto& glyph = glyphs[utfchar];
+		uint32_t glyphIndex = ttf->GetGlyphIndex(utfchar);
+		if (glyphIndex == 0) return nullptr;
+
+		auto& glyph = glyphs[glyphIndex];
 		if (glyph)
 			return glyph.get();
 
 		glyph = std::make_unique<CanvasGlyph>();
 
-		if (sft_lookup(&sft, utfchar, &glyph->id) < 0)
-			return glyph.get();
+		TrueTypeGlyph ttfglyph = ttf->LoadGlyph(glyphIndex, height);
 
-		if (sft_gmetrics(&sft, glyph->id, &glyph->metrics) < 0)
-			return glyph.get();
-
-		glyph->metrics.advanceWidth /= 3.0;
-		glyph->metrics.leftSideBearing /= 3.0;
-
-		if (glyph->metrics.minWidth <= 0 || glyph->metrics.minHeight <= 0)
-			return glyph.get();
-
-		int w = (glyph->metrics.minWidth + 3) & ~3;
-		int h = glyph->metrics.minHeight;
-
+		// Create final subpixel version
+		int w = ttfglyph.width;
+		int h = ttfglyph.height;
 		int destwidth = (w + 2) / 3;
-
 		auto texture = std::make_shared<CanvasTexture>();
 		texture->Width = destwidth;
 		texture->Height = h;
 		texture->Data.resize(destwidth * h);
+
+		uint8_t* grayscale = ttfglyph.grayscale.get();
 		uint32_t* dest = (uint32_t*)texture->Data.data();
-
-		std::unique_ptr<uint8_t[]> grayscalebuffer(new uint8_t[w * h]);
-		uint8_t* grayscale = grayscalebuffer.get();
-
-		SFT_Image img = {};
-		img.width = w;
-		img.height = h;
-		img.pixels = grayscale;
-		if (sft_render(&sft, glyph->id, img) < 0)
-			return glyph.get();
-
 		for (int y = 0; y < h; y++)
 		{
 			uint8_t* sline = grayscale + y * w;
@@ -130,26 +111,66 @@ public:
 		glyph->uvheight = h;
 		glyph->texture = std::move(texture);
 
+		glyph->metrics.advanceWidth = (ttfglyph.advanceWidth + 2) / 3;
+		glyph->metrics.leftSideBearing = (ttfglyph.leftSideBearing + 2) / 3;
+		glyph->metrics.yOffset = ttfglyph.yOffset;
+
 		return glyph.get();
 	}
+
+	std::unique_ptr<TrueTypeFont> ttf;
 
 	std::string fontname;
 	double height = 0.0;
 
-	SFT_LMetrics textmetrics = {};
+	TrueTypeTextMetrics textmetrics;
 	std::unordered_map<uint32_t, std::unique_ptr<CanvasGlyph>> glyphs;
+};
 
-private:
-	void loadFont(const void* data, size_t size)
+class CanvasFontGroup
+{
+public:
+	struct SingleFont
 	{
-		sft.xScale = height * 3;
-		sft.yScale = height;
-		sft.flags = SFT_DOWNWARD_Y;
-		sft.font = sft_loadmem(data, size);
+		std::unique_ptr<CanvasFont> font;
+		std::string language;
+	};
+	CanvasFontGroup(const std::string& fontname, double height) : height(height)
+	{
+		auto fontdata = LoadWidgetFontData(fontname);
+		fonts.resize(fontdata.size());
+		for (size_t i = 0; i < fonts.size(); i++)
+		{
+			fonts[i].font = std::make_unique<CanvasFont>(fontname, height, fontdata[i].fontdata);
+			fonts[i].language = fontdata[i].language;
+		}
 	}
 
-	SFT sft = {};
-	std::vector<uint8_t> data;
+	CanvasGlyph* getGlyph(uint32_t utfchar, const char* lang = nullptr)
+	{
+		for (int i = 0; i < 2; i++)
+		{
+			for (auto& fd : fonts)
+			{
+				if (i == 1 || lang == nullptr || *lang == 0 || fd.language.empty() || fd.language == lang)
+				{
+					auto g = fd.font->getGlyph(utfchar);
+					if (g) return g;
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
+	TrueTypeTextMetrics& GetTextMetrics()
+	{
+		return fonts[0].font->textmetrics;
+	}
+
+	double height;
+	std::vector<SingleFont> fonts;
+
 };
 
 class BitmapCanvas : public Canvas
@@ -196,6 +217,7 @@ public:
 
 	void drawLineUnclipped(const Point& p0, const Point& p1, const Colorf& color);
 
+	void fillTile(float x, float y, float width, float height, Colorf color);
 	void drawTile(CanvasTexture* texture, float x, float y, float width, float height, float u, float v, float uvwidth, float uvheight, Colorf color);
 	void drawGlyph(CanvasTexture* texture, float x, float y, float width, float height, float u, float v, float uvwidth, float uvheight, Colorf color);
 
@@ -204,6 +226,8 @@ public:
 	int getClipMaxX() const;
 	int getClipMaxY() const;
 
+	void setLanguage(const char* lang) { language = lang; }
+
 	std::unique_ptr<CanvasTexture> createTexture(int width, int height, const void* pixels, ImageFormat format = ImageFormat::B8G8R8A8);
 
 	template<typename T>
@@ -211,7 +235,7 @@ public:
 
 	DisplayWindow* window = nullptr;
 
-	std::unique_ptr<CanvasFont> font;
+	std::unique_ptr<CanvasFontGroup> font;
 	std::unique_ptr<CanvasTexture> whiteTexture;
 
 	Point origin;
@@ -223,6 +247,7 @@ public:
 	std::vector<uint32_t> pixels;
 
 	std::unordered_map<std::shared_ptr<Image>, std::unique_ptr<CanvasTexture>> imageTextures;
+	std::string language;
 };
 
 BitmapCanvas::BitmapCanvas(DisplayWindow* window) : window(window)
@@ -230,7 +255,7 @@ BitmapCanvas::BitmapCanvas(DisplayWindow* window) : window(window)
 	uiscale = window->GetDpiScale();
 	uint32_t white = 0xffffffff;
 	whiteTexture = createTexture(1, 1, &white);
-	font = std::make_unique<CanvasFont>("Segoe UI", 13.0*uiscale);
+	font = std::make_unique<CanvasFontGroup>("NotoSans", 13.0 * uiscale);
 }
 
 BitmapCanvas::~BitmapCanvas()
@@ -281,7 +306,7 @@ void BitmapCanvas::popClip()
 
 void BitmapCanvas::fillRect(const Rect& box, const Colorf& color)
 {
-	drawTile(whiteTexture.get(), (float)((origin.x + box.x) * uiscale), (float)((origin.y + box.y) * uiscale), (float)(box.width * uiscale), (float)(box.height * uiscale), 0.0, 0.0, 1.0, 1.0, color);
+	fillTile((float)((origin.x + box.x) * uiscale), (float)((origin.y + box.y) * uiscale), (float)(box.width * uiscale), (float)(box.height * uiscale), color);
 }
 
 void BitmapCanvas::drawImage(const std::shared_ptr<Image>& image, const Point& pos)
@@ -390,8 +415,8 @@ void BitmapCanvas::drawText(const Point& pos, const Colorf& color, const std::st
 	UTF8Reader reader(text.data(), text.size());
 	while (!reader.is_end())
 	{
-		CanvasGlyph* glyph = font->getGlyph(reader.character());
-		if (!glyph->texture)
+		CanvasGlyph* glyph = font->getGlyph(reader.character(), language.c_str());
+		if (!glyph || !glyph->texture)
 		{
 			glyph = font->getGlyph(32);
 		}
@@ -411,13 +436,13 @@ void BitmapCanvas::drawText(const Point& pos, const Colorf& color, const std::st
 Rect BitmapCanvas::measureText(const std::string& text)
 {
 	double x = 0.0;
-	double y = font->textmetrics.ascender - font->textmetrics.descender;
+	double y = font->GetTextMetrics().ascender - font->GetTextMetrics().descender;
 
 	UTF8Reader reader(text.data(), text.size());
 	while (!reader.is_end())
 	{
-		CanvasGlyph* glyph = font->getGlyph(reader.character());
-		if (!glyph->texture)
+		CanvasGlyph* glyph = font->getGlyph(reader.character(), language.c_str());
+		if (!glyph || !glyph->texture)
 		{
 			glyph = font->getGlyph(32);
 		}
@@ -433,8 +458,9 @@ VerticalTextPosition BitmapCanvas::verticalTextAlign()
 {
 	VerticalTextPosition align;
 	align.top = 0.0f;
-	align.baseline = font->textmetrics.ascender / uiscale;
-	align.bottom = (font->textmetrics.ascender - font->textmetrics.descender) / uiscale;
+	auto tm = font->GetTextMetrics();
+	align.baseline = tm.ascender / uiscale;
+	align.bottom = (tm.ascender - tm.descender) / uiscale;
 	return align;
 }
 
@@ -469,11 +495,11 @@ void BitmapCanvas::drawLineUnclipped(const Point& p0, const Point& p1, const Col
 {
 	if (p0.x == p1.x)
 	{
-		drawTile(whiteTexture.get(), (float)((p0.x - 0.5) * uiscale), (float)(p0.y * uiscale), (float)((p1.x + 0.5) * uiscale), (float)(p1.y * uiscale), 0.0f, 0.0f, 1.0f, 1.0f, color);
+		fillTile((float)((p0.x - 0.5) * uiscale), (float)(p0.y * uiscale), (float)uiscale, (float)((p1.y - p0.y) * uiscale), color);
 	}
 	else if (p0.y == p1.y)
 	{
-		drawTile(whiteTexture.get(), (float)(p0.x * uiscale), (float)((p0.y - 0.5) * uiscale), (float)(p1.x * uiscale), (float)((p1.y + 0.5) * uiscale), 0.0f, 0.0f, 1.0f, 1.0f, color);
+		fillTile((float)(p0.x * uiscale), (float)((p0.y - 0.5) * uiscale), (float)((p1.x - p0.x) * uiscale), (float)uiscale, color);
 	}
 	else
 	{
@@ -501,9 +527,114 @@ int BitmapCanvas::getClipMaxY() const
 	return clipStack.empty() ? height : (int)std::min((clipStack.back().y + clipStack.back().height) * uiscale, (double)height);
 }
 
+void BitmapCanvas::fillTile(float left, float top, float width, float height, Colorf color)
+{
+	if (width <= 0.0f || height <= 0.0f || color.a <= 0.0f)
+		return;
+
+	int dwidth = this->width;
+	int dheight = this->height;
+	uint32_t* dest = this->pixels.data();
+
+	int x0 = (int)left;
+	int x1 = (int)(left + width);
+	int y0 = (int)top;
+	int y1 = (int)(top + height);
+
+	x0 = std::max(x0, getClipMinX());
+	y0 = std::max(y0, getClipMinY());
+	x1 = std::min(x1, getClipMaxX());
+	y1 = std::min(y1, getClipMaxY());
+	if (x1 <= x0 || y1 <= y0)
+		return;
+
+	uint32_t cred = (int32_t)clamp(color.r * 255.0f, 0.0f, 255.0f);
+	uint32_t cgreen = (int32_t)clamp(color.g * 255.0f, 0.0f, 255.0f);
+	uint32_t cblue = (int32_t)clamp(color.b * 255.0f, 0.0f, 255.0f);
+	uint32_t calpha = (int32_t)clamp(color.a * 255.0f, 0.0f, 255.0f);
+	uint32_t invalpha = 256 - (calpha + (calpha >> 7));
+
+	if (invalpha == 0) // Solid fill
+	{
+		uint32_t c = (calpha << 24) | (cred << 16) | (cgreen << 8) | cblue;
+#ifdef USE_SSE2
+		__m128i cargb = _mm_set1_epi32(c);
+#endif
+
+		for (int y = y0; y < y1; y++)
+		{
+			uint32_t* dline = dest + y * dwidth;
+
+			int x = x0;
+#ifdef USE_SSE2
+			int ssex1 = x0 + (((x1 - x0) >> 2) << 2);
+			while (x < ssex1)
+			{
+				_mm_storeu_si128((__m128i*)(dline + x), cargb);
+				x += 4;
+			}
+#endif
+
+			while (x < x1)
+			{
+				dline[x] = c;
+				x++;
+			}
+		}
+	}
+	else // Alpha blended fill
+	{
+		cred <<= 8;
+		cgreen <<= 8;
+		cblue <<= 8;
+		calpha <<= 8;
+#ifdef USE_SSE2
+		__m128i cargb = _mm_set_epi16(calpha, cred, cgreen, cblue, calpha, cred, cgreen, cblue);
+		__m128i cinvalpha = _mm_set1_epi16(invalpha);
+#endif
+
+		for (int y = y0; y < y1; y++)
+		{
+			uint32_t* dline = dest + y * dwidth;
+
+			int x = x0;
+#ifdef USE_SSE2
+			int ssex1 = x0 + (((x1 - x0) >> 1) << 1);
+			while (x < ssex1)
+			{
+				__m128i dpixel = _mm_loadl_epi64((const __m128i*)(dline + x));
+				dpixel = _mm_unpacklo_epi8(dpixel, _mm_setzero_si128());
+
+				// dest.rgba = color.rgba + dest.rgba * (1-color.a)
+				__m128i result = _mm_srli_epi16(_mm_add_epi16(_mm_add_epi16(cargb, _mm_mullo_epi16(dpixel, cinvalpha)), _mm_set1_epi16(127)), 8);
+				_mm_storel_epi64((__m128i*)(dline + x), _mm_packus_epi16(result, _mm_setzero_si128()));
+				x += 2;
+			}
+#endif
+
+			while (x < x1)
+			{
+				uint32_t dpixel = dline[x];
+				uint32_t dalpha = dpixel >> 24;
+				uint32_t dred = (dpixel >> 16) & 0xff;
+				uint32_t dgreen = (dpixel >> 8) & 0xff;
+				uint32_t dblue = dpixel & 0xff;
+
+				// dest.rgba = color.rgba + dest.rgba * (1-color.a)
+				uint32_t a = (calpha + dalpha * invalpha + 127) >> 8;
+				uint32_t r = (cred + dred * invalpha + 127) >> 8;
+				uint32_t g = (cgreen + dgreen * invalpha + 127) >> 8;
+				uint32_t b = (cblue + dblue * invalpha + 127) >> 8;
+				dline[x] = (a << 24) | (r << 16) | (g << 8) | b;
+				x++;
+			}
+		}
+	}
+}
+
 void BitmapCanvas::drawTile(CanvasTexture* texture, float left, float top, float width, float height, float u, float v, float uvwidth, float uvheight, Colorf color)
 {
-	if (width <= 0.0f || height <= 0.0f)
+	if (width <= 0.0f || height <= 0.0f || color.a <= 0.0f)
 		return;
 
 	int swidth = texture->Width;
@@ -530,6 +661,9 @@ void BitmapCanvas::drawTile(CanvasTexture* texture, float left, float top, float
 	uint32_t cgreen = (int32_t)clamp(color.g * 256.0f, 0.0f, 256.0f);
 	uint32_t cblue = (int32_t)clamp(color.b * 256.0f, 0.0f, 256.0f);
 	uint32_t calpha = (int32_t)clamp(color.a * 256.0f, 0.0f, 256.0f);
+#ifdef USE_SSE2
+	__m128i cargb = _mm_set_epi16(calpha, cred, cgreen, cblue, calpha, cred, cgreen, cblue);
+#endif
 
 	float uscale = uvwidth / width;
 	float vscale = uvheight / height;
@@ -538,9 +672,39 @@ void BitmapCanvas::drawTile(CanvasTexture* texture, float left, float top, float
 	{
 		float vpix = v + vscale * (y + 0.5f - top);
 		const uint32_t* sline = src + ((int)vpix) * swidth;
-
 		uint32_t* dline = dest + y * dwidth;
-		for (int x = x0; x < x1; x++)
+
+		int x = x0;
+#ifdef USE_SSE2
+		int ssex1 = x0 + (((x1 - x0) >> 1) << 1);
+		while (x < ssex1)
+		{
+			float upix0 = u + uscale * (x + 0.5f - left);
+			float upix1 = u + uscale * (x + 1 + 0.5f - left);
+			uint32_t spixel0 = sline[(int)upix0];
+			uint32_t spixel1 = sline[(int)upix1];
+			__m128i spixel = _mm_set_epi32(0, 0, spixel1, spixel0);
+			spixel = _mm_unpacklo_epi8(spixel, _mm_setzero_si128());
+
+			__m128i dpixel = _mm_loadl_epi64((const __m128i*)(dline + x));
+			dpixel = _mm_unpacklo_epi8(dpixel, _mm_setzero_si128());
+
+			// Pixel shade
+			spixel = _mm_srli_epi16(_mm_add_epi16(_mm_mullo_epi16(spixel, cargb), _mm_set1_epi16(127)), 8);
+
+			// Rescale from [0,255] to [0,256]
+			__m128i sa = _mm_shufflehi_epi16(_mm_shufflelo_epi16(spixel, _MM_SHUFFLE(3, 3, 3, 3)), _MM_SHUFFLE(3, 3, 3, 3));
+			sa = _mm_add_epi16(sa, _mm_srli_epi16(sa, 7));
+			__m128i sinva = _mm_sub_epi16(_mm_set1_epi16(256), sa);
+
+			// dest.rgba = color.rgba * src.rgba * src.a + dest.rgba * (1-src.a)
+			__m128i result = _mm_srli_epi16(_mm_add_epi16(_mm_add_epi16(_mm_mullo_epi16(spixel, sa), _mm_mullo_epi16(dpixel, sinva)), _mm_set1_epi16(127)), 8);
+			_mm_storel_epi64((__m128i*)(dline + x), _mm_packus_epi16(result, _mm_setzero_si128()));
+			x += 2;
+		}
+#endif
+
+		while (x < x1)
 		{
 			float upix = u + uscale * (x + 0.5f - left);
 			uint32_t spixel = sline[(int)upix];
@@ -571,6 +735,7 @@ void BitmapCanvas::drawTile(CanvasTexture* texture, float left, float top, float
 			uint32_t g = (sgreen * sa + dgreen * sinva + 127) >> 8;
 			uint32_t b = (sblue * sa + dblue * sinva + 127) >> 8;
 			dline[x] = (a << 24) | (r << 16) | (g << 8) | b;
+			x++;
 		}
 	}
 }
@@ -603,6 +768,9 @@ void BitmapCanvas::drawGlyph(CanvasTexture* texture, float left, float top, floa
 	uint32_t cred = (int32_t)clamp(color.r * 255.0f, 0.0f, 255.0f);
 	uint32_t cgreen = (int32_t)clamp(color.g * 255.0f, 0.0f, 255.0f);
 	uint32_t cblue = (int32_t)clamp(color.b * 255.0f, 0.0f, 255.0f);
+#ifdef USE_SSE2
+	__m128i crgba = _mm_set_epi16(0, cred, cgreen, cblue, 0, cred, cgreen, cblue);
+#endif
 
 	float uscale = uvwidth / width;
 	float vscale = uvheight / height;
@@ -611,9 +779,34 @@ void BitmapCanvas::drawGlyph(CanvasTexture* texture, float left, float top, floa
 	{
 		float vpix = v + vscale * (y + 0.5f - top);
 		const uint32_t* sline = src + ((int)vpix) * swidth;
-
 		uint32_t* dline = dest + y * dwidth;
-		for (int x = x0; x < x1; x++)
+
+		int x = x0;
+#ifdef USE_SSE2
+		int ssex1 = x0 + (((x1 - x0) >> 1) << 1);
+		while (x < ssex1)
+		{
+			float upix0 = u + uscale * (x + 0.5f - left);
+			float upix1 = u + uscale * (x + 1 + 0.5f - left);
+			uint32_t spixel0 = sline[(int)upix0];
+			uint32_t spixel1 = sline[(int)upix1];
+			__m128i spixel = _mm_set_epi32(0, 0, spixel1, spixel0);
+			spixel = _mm_unpacklo_epi8(spixel, _mm_setzero_si128());
+
+			__m128i dpixel = _mm_loadl_epi64((const __m128i*)(dline + x));
+			dpixel = _mm_unpacklo_epi8(dpixel, _mm_setzero_si128());
+
+			// Rescale from [0,255] to [0,256]
+			spixel = _mm_add_epi16(spixel, _mm_srli_epi16(spixel, 7));
+
+			// dest.rgb = color.rgb * src.rgb + dest.rgb * (1-src.rgb)
+			__m128i result = _mm_srli_epi16(_mm_add_epi16(_mm_add_epi16(_mm_mullo_epi16(crgba, spixel), _mm_mullo_epi16(dpixel, _mm_sub_epi16(_mm_set1_epi16(256), spixel))), _mm_set1_epi16(127)), 8);
+			_mm_storel_epi64((__m128i*)(dline + x), _mm_or_si128(_mm_packus_epi16(result, _mm_setzero_si128()), _mm_set1_epi32(0xff000000)));
+			x += 2;
+		}
+#endif
+
+		while (x < x1)
 		{
 			float upix = u + uscale * (x + 0.5f - left);
 			uint32_t spixel = sline[(int)upix];
@@ -636,6 +829,7 @@ void BitmapCanvas::drawGlyph(CanvasTexture* texture, float left, float top, floa
 			uint32_t g = (cgreen * sgreen + dgreen * (256 - sgreen) + 127) >> 8;
 			uint32_t b = (cblue * sblue + dblue * (256 - sblue) + 127) >> 8;
 			dline[x] = 0xff000000 | (r << 16) | (g << 8) | b;
+			x++;
 		}
 	}
 }

@@ -2,6 +2,7 @@
 #include "core/widget.h"
 #include "core/timer.h"
 #include "core/colorf.h"
+#include "core/theme.h"
 #include <stdexcept>
 
 Widget::Widget(Widget* parent, WidgetType type) : Type(type)
@@ -10,6 +11,15 @@ Widget::Widget(Widget* parent, WidgetType type) : Type(type)
 	{
 		DispWindow = DisplayWindow::Create(this);
 		DispCanvas = Canvas::create(DispWindow.get());
+		SetStyleState("root");
+
+		SetWindowBackground(GetStyleColor("window-background"));
+		if (GetStyleColor("window-border").a > 0.0f)
+			SetWindowBorderColor(GetStyleColor("window-border"));
+		if (GetStyleColor("window-caption-color").a > 0.0f)
+			SetWindowCaptionColor(GetStyleColor("window-caption-color"));
+		if (GetStyleColor("window-caption-text-color").a > 0.0f)
+			SetWindowCaptionTextColor(GetStyleColor("window-caption-text-color"));
 	}
 
 	SetParent(parent);
@@ -138,10 +148,10 @@ Rect Widget::GetFrameGeometry() const
 
 void Widget::SetNoncontentSizes(double left, double top, double right, double bottom)
 {
-	Noncontent.Left = left;
-	Noncontent.Top = top;
-	Noncontent.Right = right;
-	Noncontent.Bottom = bottom;
+	SetStyleDouble("noncontent-left", left);
+	SetStyleDouble("noncontent-top", top);
+	SetStyleDouble("noncontent-right", right);
+	SetStyleDouble("noncontent-bottom", bottom);
 }
 
 void Widget::SetFrameGeometry(const Rect& geometry)
@@ -149,10 +159,10 @@ void Widget::SetFrameGeometry(const Rect& geometry)
 	if (Type == WidgetType::Child)
 	{
 		FrameGeometry = geometry;
-		double left = FrameGeometry.left() + Noncontent.Left;
-		double top = FrameGeometry.top() + Noncontent.Top;
-		double right = FrameGeometry.right() - Noncontent.Right;
-		double bottom = FrameGeometry.bottom() - Noncontent.Bottom;
+		double left = FrameGeometry.left() + GetNoncontentLeft();
+		double top = FrameGeometry.top() + GetNoncontentTop();
+		double right = FrameGeometry.right() - GetNoncontentRight();
+		double bottom = FrameGeometry.bottom() - GetNoncontentBottom();
 		left = std::min(left, FrameGeometry.right());
 		top = std::min(top, FrameGeometry.bottom());
 		right = std::max(right, FrameGeometry.left());
@@ -171,6 +181,11 @@ void Widget::Show()
 	if (Type != WidgetType::Child)
 	{
 		DispWindow->Show();
+	}
+	else if (HiddenFlag)
+	{
+		HiddenFlag = false;
+		Update();
 	}
 }
 
@@ -212,6 +227,11 @@ void Widget::Hide()
 	{
 		if (DispWindow)
 			DispWindow->Hide();
+	}
+	else if (!HiddenFlag)
+	{
+		HiddenFlag = true;
+		Update();
 	}
 }
 
@@ -299,14 +319,23 @@ void Widget::Paint(Canvas* canvas)
 	OnPaint(canvas);
 	for (Widget* w = FirstChild(); w != nullptr; w = w->NextSibling())
 	{
-		if (w->Type == WidgetType::Child)
+		if (w->Type == WidgetType::Child && !w->HiddenFlag)
 			w->Paint(canvas);
 	}
 	canvas->setOrigin(oldOrigin);
 	canvas->popClip();
 }
 
-bool Widget::GetKeyState(EInputKey key)
+void Widget::OnPaintFrame(Canvas* canvas)
+{
+	WidgetStyle* style = WidgetTheme::GetTheme()->GetStyle(StyleClass);
+	if (style)
+	{
+		style->Paint(this, canvas, GetFrameGeometry().size());
+	}
+}
+
+bool Widget::GetKeyState(InputKey key)
 {
 	Widget* window = Window();
 	return window ? window->DispWindow->GetKeyState(key) : false;
@@ -323,9 +352,21 @@ bool Widget::IsEnabled()
 	return true;
 }
 
+bool Widget::IsHidden()
+{
+	return !IsVisible();
+}
+
 bool Widget::IsVisible()
 {
-	return true;
+	if (Type != WidgetType::Child)
+	{
+		return true; // DispWindow->IsVisible();
+	}
+	else
+	{
+		return !HiddenFlag;
+	}
 }
 
 void Widget::SetFocus()
@@ -427,9 +468,9 @@ Widget* Widget::Window()
 	return nullptr;
 }
 
-Canvas* Widget::GetCanvas()
+Canvas* Widget::GetCanvas() const
 {
-	for (Widget* w = this; w != nullptr; w = w->Parent())
+	for (const Widget* w = this; w != nullptr; w = w->Parent())
 	{
 		if (w->DispCanvas)
 			return w->DispCanvas.get();
@@ -441,7 +482,7 @@ Widget* Widget::ChildAt(const Point& pos)
 {
 	for (Widget* cur = LastChild(); cur != nullptr; cur = cur->PrevSibling())
 	{
-		if (cur->FrameGeometry.contains(pos))
+		if (!cur->HiddenFlag && cur->FrameGeometry.contains(pos))
 		{
 			Widget* cur2 = cur->ChildAt(pos - cur->ContentGeometry.topLeft());
 			return cur2 ? cur2 : cur;
@@ -523,16 +564,32 @@ void Widget::OnWindowMouseMove(const Point& pos)
 		if (HoverWidget != widget)
 		{
 			if (HoverWidget)
-				HoverWidget->OnMouseLeave();
+			{
+				for (Widget* w = HoverWidget; w != widget && w != this; w = w->Parent())
+				{
+					Widget* p = w->Parent();
+					if (!w->FrameGeometry.contains(p->MapFrom(this, pos)))
+					{
+						w->OnMouseLeave();
+					}
+				}
+			}
 			HoverWidget = widget;
 		}
 
 		DispWindow->SetCursor(widget->CurrentCursor);
-		widget->OnMouseMove(widget->MapFrom(this, pos));
+
+		do
+		{
+			widget->OnMouseMove(widget->MapFrom(this, pos));
+			if (widget == this)
+				break;
+			widget = widget->Parent();
+		} while (widget);
 	}
 }
 
-void Widget::OnWindowMouseDown(const Point& pos, EInputKey key)
+void Widget::OnWindowMouseDown(const Point& pos, InputKey key)
 {
 	if (CaptureWidget)
 	{
@@ -543,11 +600,17 @@ void Widget::OnWindowMouseDown(const Point& pos, EInputKey key)
 		Widget* widget = ChildAt(pos);
 		if (!widget)
 			widget = this;
-		widget->OnMouseDown(widget->MapFrom(this, pos), key);
+		while (widget)
+		{
+			bool stopPropagation = widget->OnMouseDown(widget->MapFrom(this, pos), key);
+			if (stopPropagation || widget == this)
+				break;
+			widget = widget->Parent();
+		}
 	}
 }
 
-void Widget::OnWindowMouseDoubleclick(const Point& pos, EInputKey key)
+void Widget::OnWindowMouseDoubleclick(const Point& pos, InputKey key)
 {
 	if (CaptureWidget)
 	{
@@ -558,11 +621,17 @@ void Widget::OnWindowMouseDoubleclick(const Point& pos, EInputKey key)
 		Widget* widget = ChildAt(pos);
 		if (!widget)
 			widget = this;
-		widget->OnMouseDoubleclick(widget->MapFrom(this, pos), key);
+		while (widget)
+		{
+			bool stopPropagation = widget->OnMouseDoubleclick(widget->MapFrom(this, pos), key);
+			if (stopPropagation || widget == this)
+				break;
+			widget = widget->Parent();
+		}
 	}
 }
 
-void Widget::OnWindowMouseUp(const Point& pos, EInputKey key)
+void Widget::OnWindowMouseUp(const Point& pos, InputKey key)
 {
 	if (CaptureWidget)
 	{
@@ -573,11 +642,17 @@ void Widget::OnWindowMouseUp(const Point& pos, EInputKey key)
 		Widget* widget = ChildAt(pos);
 		if (!widget)
 			widget = this;
-		widget->OnMouseUp(widget->MapFrom(this, pos), key);
+		while (widget)
+		{
+			bool stopPropagation = widget->OnMouseUp(widget->MapFrom(this, pos), key);
+			if (stopPropagation || widget == this)
+				break;
+			widget = widget->Parent();
+		}
 	}
 }
 
-void Widget::OnWindowMouseWheel(const Point& pos, EInputKey key)
+void Widget::OnWindowMouseWheel(const Point& pos, InputKey key)
 {
 	if (CaptureWidget)
 	{
@@ -588,7 +663,13 @@ void Widget::OnWindowMouseWheel(const Point& pos, EInputKey key)
 		Widget* widget = ChildAt(pos);
 		if (!widget)
 			widget = this;
-		widget->OnMouseWheel(widget->MapFrom(this, pos), key);
+		while (widget)
+		{
+			bool stopPropagation = widget->OnMouseWheel(widget->MapFrom(this, pos), key);
+			if (stopPropagation || widget == this)
+				break;
+			widget = widget->Parent();
+		}
 	}
 }
 
@@ -610,13 +691,13 @@ void Widget::OnWindowKeyChar(std::string chars)
 		FocusWidget->OnKeyChar(chars);
 }
 
-void Widget::OnWindowKeyDown(EInputKey key)
+void Widget::OnWindowKeyDown(InputKey key)
 {
 	if (FocusWidget)
 		FocusWidget->OnKeyDown(key);
 }
 
-void Widget::OnWindowKeyUp(EInputKey key)
+void Widget::OnWindowKeyUp(InputKey key)
 {
 	if (FocusWidget)
 		FocusWidget->OnKeyUp(key);
@@ -650,4 +731,92 @@ void Widget::OnWindowDpiScaleChanged()
 Size Widget::GetScreenSize()
 {
 	return DisplayWindow::GetScreenSize();
+}
+
+void Widget::SetStyleClass(const std::string& themeClass)
+{
+	if (StyleClass != themeClass)
+	{
+		StyleClass = themeClass;
+		Update();
+	}
+}
+
+void Widget::SetStyleState(const std::string& state)
+{
+	if (StyleState != state)
+	{
+		StyleState = state;
+		Update();
+	}
+}
+
+void Widget::SetStyleBool(const std::string& propertyName, bool value)
+{
+	StyleProperties[propertyName] = value;
+}
+
+void Widget::SetStyleInt(const std::string& propertyName, int value)
+{
+	StyleProperties[propertyName] = value;
+}
+
+void Widget::SetStyleDouble(const std::string& propertyName, double value)
+{
+	StyleProperties[propertyName] = value;
+}
+
+void Widget::SetStyleString(const std::string& propertyName, const std::string& value)
+{
+	StyleProperties[propertyName] = value;
+}
+
+void Widget::SetStyleColor(const std::string& propertyName, const Colorf& value)
+{
+	StyleProperties[propertyName] = value;
+}
+
+bool Widget::GetStyleBool(const std::string& propertyName) const
+{
+	auto it = StyleProperties.find(propertyName);
+	if (it != StyleProperties.end())
+		return std::get<bool>(it->second);
+	WidgetStyle* style = WidgetTheme::GetTheme()->GetStyle(StyleClass);
+	return style ? style->GetBool(StyleState, propertyName) : false;
+}
+
+int Widget::GetStyleInt(const std::string& propertyName) const
+{
+	auto it = StyleProperties.find(propertyName);
+	if (it != StyleProperties.end())
+		return std::get<int>(it->second);
+	WidgetStyle* style = WidgetTheme::GetTheme()->GetStyle(StyleClass);
+	return style ? style->GetInt(StyleState, propertyName) : 0;
+}
+
+double Widget::GetStyleDouble(const std::string& propertyName) const
+{
+	auto it = StyleProperties.find(propertyName);
+	if (it != StyleProperties.end())
+		return std::get<double>(it->second);
+	WidgetStyle* style = WidgetTheme::GetTheme()->GetStyle(StyleClass);
+	return style ? style->GetDouble(StyleState, propertyName) : 0.0;
+}
+
+std::string Widget::GetStyleString(const std::string& propertyName) const
+{
+	auto it = StyleProperties.find(propertyName);
+	if (it != StyleProperties.end())
+		return std::get<std::string>(it->second);
+	WidgetStyle* style = WidgetTheme::GetTheme()->GetStyle(StyleClass);
+	return style ? style->GetString(StyleState, propertyName) : std::string();
+}
+
+Colorf Widget::GetStyleColor(const std::string& propertyName) const
+{
+	auto it = StyleProperties.find(propertyName);
+	if (it != StyleProperties.end())
+		return std::get<Colorf>(it->second);
+	WidgetStyle* style = WidgetTheme::GetTheme()->GetStyle(StyleClass);
+	return style ? style->GetColor(StyleState, propertyName) : Colorf::transparent();
 }
