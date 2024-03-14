@@ -262,6 +262,7 @@ class Actor : Thinker native
 	native uint freezetics;
 	native Vector2 AutomapOffsets;
 	native Array<PathNode> Path;
+	native double LandingSpeed;
 
 	meta String Obituary;		// Player was killed by this actor
 	meta String HitObituary;		// Player was killed by this actor in melee
@@ -367,6 +368,7 @@ class Actor : Thinker native
 	property ShadowAimFactor: ShadowAimFactor;
 	property ShadowPenaltyFactor: ShadowPenaltyFactor;
 	property AutomapOffsets : AutomapOffsets;
+	property LandingSpeed: LandingSpeed;
 	
 	// need some definition work first
 	//FRenderStyle RenderStyle;
@@ -455,6 +457,7 @@ class Actor : Thinker native
 		RenderHidden 0;
 		RenderRequired 0;
 		FriendlySeeBlocks 10; // 10 (blocks) * 128 (one map unit block)
+		LandingSpeed -8; // landing speed from a jump with normal gravity (squats the player's view)
 	}
 	
 	// Functions
@@ -826,6 +829,20 @@ class Actor : Thinker native
 			if (!next || next == node)
 				continue;
 
+			// 2D checks for floaters, 3D for ground
+			Actor tar = target;
+			bool vrange = bNOVERTICALMELEERANGE;
+			bNOVERTICALMELEERANGE = bFLOAT;
+			target = next;
+
+			bool inrange = CheckMeleeRange();
+
+			target = tar;
+			bNOVERTICALMELEERANGE = vrange;
+
+			if (inrange)
+				continue;
+			
 			// Monsters will never 'reach' AMBUSH flagged nodes. Instead, the engine
 			// indicates they're reached the moment they tele/portal. 
 

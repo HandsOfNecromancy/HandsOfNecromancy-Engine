@@ -2245,14 +2245,18 @@ bool AActor::CanPathfind()
 			return true;
 
 		// Can't pathfind while feared.
-		if (!(flags4 & MF4_FRIGHTENED))
-		{
-			if (!target)	
-				return true;
+		if (flags4 & MF4_FRIGHTENED)
+			return false;
 
-			if (!target->flags8 & MF8_FRIGHTENING)
-				return (!target->player || !(target->player->cheats & CF_FRIGHTENING));
+		if (target)
+		{
+			if (target->flags8 & MF8_FRIGHTENING)
+				return false;
+
+			if (target->player && target->player->cheats & CF_FRIGHTENING)
+				return false;
 		}
+		return true;
 	}
 	return false;
 }
@@ -2733,14 +2737,24 @@ void A_DoChase (AActor *actor, bool fastchase, FState *meleestate, FState *missi
 				sight = P_CheckSight(actor, actor->target, SF_SEEPASTBLOCKEVERYTHING);
 		}
 		else sight = 0;
-			
+		
+		// Out of sight, so keep pathfinding
 		if (sight == 0)
 		{
 			if (pnode && !(actor->goal->flags & MF_AMBUSH))
 			{
 				AActor* temp = actor->target;
 				actor->target = actor->goal;
-				bool reached = (P_CheckMeleeRange(actor));
+				bool reached = false;
+				// 2D checks for floaters, 3D otherwise
+				if (actor->flags & MF_FLOAT)
+				{
+					bool vrange = !!(actor->flags5 & MF5_NOVERTICALMELEERANGE);
+					actor->flags5 |= MF5_NOVERTICALMELEERANGE;
+					reached = P_CheckMeleeRange(actor);
+					if (!vrange) actor->flags5 &= ~(MF5_NOVERTICALMELEERANGE);
+				}
+				else reached = (P_CheckMeleeRange(actor));
 				actor->target = temp;
 
 				if (reached)

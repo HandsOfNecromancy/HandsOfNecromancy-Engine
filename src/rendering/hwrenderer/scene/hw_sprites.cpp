@@ -79,7 +79,8 @@ EXTERN_CVAR(Bool, gl_aalines)
 
 CVAR(Bool, gl_usecolorblending, true, CVAR_ARCHIVE | CVAR_GLOBALCONFIG)
 CVAR(Bool, gl_sprite_blend, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG);
-CVAR(Int, gl_spriteclip, 2, CVAR_ARCHIVE)
+CVAR(Int, gl_spriteclip, -1, CVAR_ARCHIVE)
+CVAR(Bool, gl_spriteclipupdate, false, CVAR_ARCHIVE)
 CVAR(Float, gl_sclipthreshold, 10.0, CVAR_ARCHIVE)
 CVAR(Float, gl_sclipfactor, 1.8f, CVAR_ARCHIVE)
 CVAR(Int, gl_particles_style, 1, CVAR_ARCHIVE | CVAR_GLOBALCONFIG) // 0 = square, 1 = round, 2 = smooth
@@ -679,6 +680,12 @@ void HWSprite::SplitSprite(HWDrawInfo *di, FRenderState& state, sector_t * front
 
 void HWSprite::PerformSpriteClipAdjustment(AActor *thing, const DVector2 &thingpos, float spriteheight)
 {
+	if (!(gl_spriteclipupdate))
+	{
+		// introduce anamorphic sprite clipping
+		gl_spriteclipupdate = true;
+		gl_spriteclip = -1;
+	}
 	const float NO_VAL = 100000000.0f;
 	bool clipthing = (thing->player || thing->flags3&MF3_ISMONSTER || thing->IsKindOf(NAME_Inventory)) && (thing->flags&MF_ICECORPSE || !(thing->flags&MF_CORPSE));
 	bool smarterclip = !clipthing && gl_spriteclip == 3;
