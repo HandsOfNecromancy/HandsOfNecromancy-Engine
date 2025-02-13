@@ -94,7 +94,7 @@ const char *GetVersionString();
 #define GAMESIG "HANDSOFNECROMANCY"
 #define BASEWAD "engine-classic.pk3"
 // Set OPTIONALWAD to "" (null) to disable searching for it
-#define OPTIONALWAD "game_support.pk3"
+#define OPTIONALWAD "hon_support.pk3"
 #define GZDOOM 1
 #define VR3D_ENABLED
 
